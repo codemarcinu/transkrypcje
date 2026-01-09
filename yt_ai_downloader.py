@@ -140,6 +140,7 @@ class VideoProcessor:
             # Używamy ffmpeg do konwersji
             cmd = [
                 "ffmpeg", "-y",  # Nadpisz jeśli istnieje
+                "-loglevel", "error", "-nostats",  # Fix buffer overflow
                 "-i", input_path,
                 "-codec:a", "libmp3lame",
                 "-qscale:a", "2",  # Dobra jakość VBR (~190kbps)
