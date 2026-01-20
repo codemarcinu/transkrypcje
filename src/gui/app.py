@@ -20,7 +20,10 @@ class App:
         
         self.stop_event = threading.Event()
         self.process_thread = None
+        self.stop_event = threading.Event()
+        self.process_thread = None
         self.last_output_files = []
+        self.batch_info = (0, 0) # current, total
         
         # Internal logger helper
         self.logger = Logger(self._log_thread_safe)
@@ -344,32 +347,43 @@ class App:
             else:
                  weights = {'transcribing': 70, 'summarizing': 30} if do_summarize else {'transcribing': 100}
 
-        current_base = 0
-        # Quick and dirty progress mapping based on stage name
+        # Calculate progress for current file
+        file_percent = 0
         if stage == "downloading":
             max_w = weights.get('downloading', 0)
-            total_percent = (percent / 100) * max_w
+            file_percent = (percent / 100) * max_w
             label = f"Pobieranie... {percent:.1f}%"
         elif stage == "converting":
             base = weights.get('downloading', 0)
             max_w = weights.get('converting', 0)
-            total_percent = base + ((percent/100) * max_w)
+            file_percent = base + ((percent/100) * max_w)
             label = f"Konwersja MP3... {percent:.1f}%"
         elif stage == "transcribing":
             base = weights.get('downloading', 0) + weights.get('converting', 0)
             max_w = weights.get('transcribing', 0)
-            total_percent = base + ((percent/100) * max_w)
+            file_percent = base + ((percent/100) * max_w)
             label = f"Transkrypcja AI... {percent:.1f}%"
         elif stage == "summarizing":
             base = weights.get('downloading', 0) + weights.get('converting', 0) + weights.get('transcribing', 0)
             max_w = weights.get('summarizing', 0)
-            total_percent = base + ((percent/100) * max_w)
+            file_percent = base + ((percent/100) * max_w)
             label = "Generowanie podsumowania..."
         elif stage == "finished":
-            total_percent = 100
+            file_percent = 100
             label = "Zakończono!"
 
-        self.total_progress_var.set(total_percent)
+        # Calculate total batch progress
+        current, total = self.batch_info
+        if total > 1:
+            # Scale file_percent to batch item slot
+            item_slot = 100 / total
+            total_batch_percent = ((current - 1) * item_slot) + (file_percent / 100 * item_slot)
+            
+            label = f"[{current}/{total}] {label}"
+            self.total_progress_var.set(total_batch_percent)
+        else:
+            self.total_progress_var.set(file_percent)
+
         self.task_label_var.set(label)
 
     def browse_folder(self):
@@ -450,61 +464,84 @@ class App:
         self.root.after(0, lambda: self.btn_start.config(state="disabled"))
         self.root.after(0, lambda: self.btn_cancel.config(state="normal"))
         self.log(f"Start w trybie: {'YouTube' if is_youtube_mode else 'Plik Lokalny'}")
-
-        video_file = None
-        txt_file = None
-        summary_file = None
+        
+        # Reset batch info
+        self.batch_info = (0, 0)
+        video_files = []
+        all_output_files = []
 
         try:
-            # 1. Pozyskanie pliku źródłowego (Download lub Select)
+            # 1. Pozyskanie plików źródłowych
             if is_youtube_mode:
                 url = self.url_entry.get().strip()
                 if not processor.validate_url(url):
                     raise Exception("Nieprawidłowy URL YouTube")
-                video_file = processor.download_video(url, save_path, quality, audio_quality)
+                # Zwraca LISTĘ plików
+                video_files = processor.download_video(url, save_path, quality, audio_quality)
             else:
                 local_path = self.local_file_entry.get().strip()
                 if not os.path.exists(local_path):
                     raise Exception("Wybrany plik lokalny nie istnieje")
                 
+                final_local_file = local_path
                 # Opcjonalna konwersja do MP3
                 if self.convert_mp3_var.get():
-                    # Utwórz nazwę pliku wynikowego w folderze docelowym
                     filename = os.path.basename(local_path)
                     target_mp3 = os.path.join(save_path, os.path.splitext(filename)[0] + ".mp3")
-                    video_file = processor.convert_to_mp3(local_path, target_mp3)
-                else:
-                    video_file = local_path # Użyj oryginału
-
-            # 2. Transkrypcja
-            if do_transcribe and video_file:
-                segments, info = processor.transcribe_video(video_file, language, model_size)
-                # Zapisujemy w folderze wyjściowym (save_path)
-                # Jeśli plik wideo jest gdzie indziej, musimy zbudować ścieżkę dla txt
-                base_name = os.path.basename(video_file)
-                output_base = os.path.join(save_path, base_name)
+                    final_local_file = processor.convert_to_mp3(local_path, target_mp3)
                 
-                txt_file = processor.save_transcription(segments, info, output_base, output_format, language)
-                self.log(f"Transkrypcja: {os.path.basename(txt_file)}")
+                video_files = [final_local_file]
 
-                # 3. Podsumowanie
-                if do_summarize:
-                    full_text = " ".join([s.text for s in segments])
-                    summary = processor.summarize_text(full_text.strip(), style=summary_style)
-                    if summary:
-                        summary_file = os.path.splitext(output_base)[0] + "_podsumowanie.txt"
-                        with open(summary_file, "w", encoding="utf-8") as f: f.write(summary)
-                        self.log(f"Podsumowanie: {os.path.basename(summary_file)}")
+            # Ustawienie info o batchu
+            self.batch_info = (0, len(video_files))
+            total_files = len(video_files)
             
-            # 4. Sprzątanie (tylko dla YouTube, plików lokalnych nie usuwamy)
-            if is_youtube_mode and self.delete_video_var.get() and video_file:
-                 try: os.remove(video_file)
-                 except: pass
+            # 2. Przetwarzanie sekwencyjne
+            for i, video_file in enumerate(video_files, 1):
+                if self.stop_event.is_set():
+                    break
+                    
+                self.batch_info = (i, total_files)
+                # Resetujemy postęp pliku
+                self.update_progress(0, "transcribing" if do_transcribe else "finished")
+                
+                all_output_files.append(video_file)
+                base_name = os.path.basename(video_file)
 
-            output_files = [f for f in [video_file, txt_file, summary_file] if f and os.path.exists(f)]
-            self.root.after(0, lambda: self.show_action_buttons(output_files))
-            self.root.after(0, lambda: messagebox.showinfo("Sukces", "Zakończono!"))
-            self.update_progress(100, "finished")
+                # Transkrypcja
+                txt_file = None
+                if do_transcribe:
+                    self.log(f"[{i}/{total_files}] Przetwarzanie: {base_name}")
+                    segments, info = processor.transcribe_video(video_file, language, model_size)
+                    
+                    output_base = os.path.join(save_path, base_name)
+                    txt_file = processor.save_transcription(segments, info, output_base, output_format, language)
+                    all_output_files.append(txt_file)
+                    self.log(f"Transkrypcja gotowa: {os.path.basename(txt_file)}")
+
+                    # Podsumowanie
+                    if do_summarize:
+                        full_text = " ".join([s.text for s in segments])
+                        summary = processor.summarize_text(full_text.strip(), style=summary_style)
+                        if summary:
+                            summary_file = os.path.splitext(output_base)[0] + "_podsumowanie.txt"
+                            with open(summary_file, "w", encoding="utf-8") as f: f.write(summary)
+                            all_output_files.append(summary_file)
+                            self.log(f"Podsumowanie gotowe: {os.path.basename(summary_file)}")
+            
+                # Sprzątanie (tylko YouTube)
+                if is_youtube_mode and self.delete_video_var.get() and video_file:
+                     try: os.remove(video_file)
+                     except: pass
+                     # Usuwamy z listy wynikowej jeśli skasowano
+                     if video_file in all_output_files:
+                         all_output_files.remove(video_file)
+
+            if not self.stop_event.is_set():
+                valid_outputs = [f for f in all_output_files if f and os.path.exists(f)]
+                self.root.after(0, lambda: self.show_action_buttons(valid_outputs))
+                self.root.after(0, lambda: messagebox.showinfo("Sukces", "Przetwarzanie zakończone!"))
+                self.update_progress(100, "finished")
 
         except InterruptedError:
             self.log("Anulowano przez użytkownika")

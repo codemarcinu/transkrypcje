@@ -20,7 +20,6 @@ class Downloader:
         # 1. Konfiguracja wstępna (tylko do pobrania info)
         common_opts = {
             "outtmpl": os.path.join(save_path, "%(title)s.%(ext)s"),
-            "progress_hooks": [self.yt_dlp_hook],
             "writethumbnail": False,
             "writeinfojson": False,
             "keepvideo": False,
@@ -46,11 +45,12 @@ class Downloader:
             raise Exception(f"Błąd analizy URL: {str(e)}")
 
         # 3. Przygotowanie opcji pobierania właściwego
-        # Musimy stworzyć opcje zależne od jakości
         final_opts = common_opts.copy()
         final_opts["noplaylist"] = True # Pobieramy pojedynczo w pętli
         final_opts["quiet"] = False
         final_opts["no_warnings"] = False
+        # Remove default hook, we will add custom one per item
+        # final_opts["progress_hooks"] = ... (added locally)
 
         if quality == "best":
             final_opts.update({
@@ -83,20 +83,38 @@ class Downloader:
             
             video_url = entry.get('url') or entry.get('webpage_url')
             if not video_url:
-                # Fallback for some extractors
                 video_url = url 
             
             title = entry.get('title', f"Wideo {i}")
             self.logger.log(f"Pobieranie [{i}/{total_items}]: {title} ({quality})...")
-            self.progress_callback(0, "downloading")
+            
+            # Custom hook for this item
+            def item_progress_hook(d):
+                if self.stop_event.is_set(): raise InterruptedError("Anulowano")
+                if d["status"] == "downloading":
+                    try:
+                        p = d.get("_percent_str", "0%").replace("%", "")
+                        percent = float(p)
+                        # Scale to global progress
+                        global_percent = ((i - 1) / total_items * 100) + (percent / total_items)
+                        self.progress_callback(global_percent, "downloading")
+                    except: pass
+                elif d["status"] == "finished":
+                    # Item finished
+                    global_percent = (i / total_items) * 100
+                    self.progress_callback(global_percent, "downloading")
+
+            # Update opts with local hook
+            current_opts = final_opts.copy()
+            current_opts["progress_hooks"] = [item_progress_hook]
 
             try:
-                with yt_dlp.YoutubeDL(final_opts) as ydl:
+                with yt_dlp.YoutubeDL(current_opts) as ydl:
                     # Pobieranie pojedynczego elementu
                     item_info = ydl.extract_info(video_url, download=True)
                     filename = ydl.prepare_filename(item_info)
                     
-                    # Korekta rozszerzenia (podobnie jak w oryginale)
+                    # Korekta rozszerzenia
                     base = os.path.splitext(filename)[0]
                     if quality == "audio_only":
                         filename = base + ".mp3"
@@ -112,29 +130,13 @@ class Downloader:
                 self.logger.log(f"Błąd pobierania elementu {i}: {e}")
                 continue
 
-            self.progress_callback(100, "downloading")
-
         if self.stop_event.is_set():
-            # Opcjonalne czyszczenie? Na razie zostawiamy pobrane pliki.
             raise InterruptedError("Operacja anulowana przez użytkownika")
 
         return downloaded_files
 
-    def yt_dlp_hook(self, d):
-        """Hook dla postępu pobierania"""
-        if self.stop_event.is_set():
-            raise InterruptedError("Anulowano")
-        
-        if d["status"] == "downloading":
-            try:
-                p = d.get("_percent_str", "0%").replace("%", "")
-                percent = float(p)
-                self.progress_callback(percent, "downloading")
-            except (ValueError, KeyError):
-                pass
-        elif d["status"] == "finished":
-            self.progress_callback(100, "downloading")
-
+    # Removed old `yt_dlp_hook` method as we use closure now
+    
     def convert_to_mp3(self, input_path, output_path=None):
         """Konwertuje plik audio do MP3 używając FFmpeg"""
         if self.stop_event.is_set():
