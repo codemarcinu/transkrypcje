@@ -3,6 +3,9 @@ import os
 import sys
 import unittest
 import shutil
+# Add project root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from src.utils.config import DATA_RAW, DATA_PROCESSED, DATA_OUTPUT
 from main_pipeline import run_pipeline
 
