@@ -180,6 +180,10 @@ class App:
         self.summarize_var = tk.BooleanVar(value=True)
         self.chk_summarize = tk.Checkbutton(row4, text="Generuj podsumowanie (Ollama)", variable=self.summarize_var)
         self.chk_summarize.pack(side=tk.LEFT)
+        
+        self.osint_var = tk.BooleanVar(value=False)
+        self.chk_osint = tk.Checkbutton(row4, text="Analiza OSINT", variable=self.osint_var)
+        self.chk_osint.pack(side=tk.LEFT, padx=(10, 0))
 
         tk.Label(row4, text=" | Styl:").pack(side=tk.LEFT, padx=(5, 0))
         self.summary_length_var = tk.StringVar(value="Zwięzłe (3 punkty)")
@@ -299,13 +303,13 @@ class App:
          self.logger.log(message)
 
     def _log_thread_safe(self, message):
+        self.root.after(0, lambda: self._log_ui_update(message))
+
+    def _log_ui_update(self, message):
         self.log_text.config(state="normal")
-        # Ensure timestamp is not duplicated if logger adds it (logger format has it, but text widget inserts manually in original)
-        # Original: f"[{time.strftime('%H:%M:%S')}] {message}\n"
-        # My logger.py does logging.info(message), but the callback receives raw message?
-        # Let's check logger.py... it calls self.log_callback(message).
-        # So I should format it here.
         self.log_text.insert(tk.END, f"[{time.strftime('%H:%M:%S')}] {message}\n")
+        self.log_text.see(tk.END)
+        self.log_text.config(state="disabled")
         self.log_text.see(tk.END)
         self.log_text.config(state="disabled")
 
@@ -443,6 +447,7 @@ class App:
         
         do_transcribe = self.transcribe_var.get()
         do_summarize = self.summarize_var.get()
+        do_osint = self.osint_var.get() if hasattr(self, 'osint_var') else False
         summary_style = self.summary_length_var.get()
         
         # Sprawdzenie która zakładka jest aktywna
@@ -510,24 +515,42 @@ class App:
 
                 # Transkrypcja
                 txt_file = None
+                full_transcription_text = ""
+                
                 if do_transcribe:
                     self.log(f"[{i}/{total_files}] Przetwarzanie: {base_name}")
-                    segments, info = processor.transcribe_video(video_file, language, model_size)
+                    
+                    # NOTE: returns (generator, info)
+                    segments_gen, info = processor.transcribe_video(video_file, language, model_size)
                     
                     output_base = os.path.join(save_path, base_name)
-                    txt_file = processor.save_transcription(segments, info, output_base, output_format, language)
+                    # NOTE: save_transcription now consumes generator and returns (filepath, full_text)
+                    txt_file, full_transcription_text = processor.save_transcription(segments_gen, info, output_base, output_format, language)
+                    
                     all_output_files.append(txt_file)
                     self.log(f"Transkrypcja gotowa: {os.path.basename(txt_file)}")
 
                     # Podsumowanie
                     if do_summarize:
-                        full_text = " ".join([s.text for s in segments])
-                        summary = processor.summarize_text(full_text.strip(), style=summary_style)
-                        if summary:
-                            summary_file = os.path.splitext(output_base)[0] + "_podsumowanie.txt"
-                            with open(summary_file, "w", encoding="utf-8") as f: f.write(summary)
-                            all_output_files.append(summary_file)
-                            self.log(f"Podsumowanie gotowe: {os.path.basename(summary_file)}")
+                        if full_transcription_text:
+                            summary = processor.summarize_text(full_transcription_text.strip(), style=summary_style)
+                            if summary:
+                                summary_file = os.path.splitext(output_base)[0] + "_podsumowanie.txt"
+                                with open(summary_file, "w", encoding="utf-8") as f: f.write(summary)
+                                all_output_files.append(summary_file)
+                                self.log(f"Podsumowanie gotowe: {os.path.basename(summary_file)}")
+                        else:
+                             self.log("Brak treści do podsumowania.")
+                             
+                    # Analiza OSINT
+                    if do_osint:
+                        if txt_file and os.path.exists(txt_file):
+                            self.log("Rozpoczynam analizę OSINT...")
+                            osint_file = os.path.splitext(output_base)[0] + "_raport_osint.md"
+                            processor.run_osint_analysis(txt_file, osint_file)
+                            all_output_files.append(osint_file)
+                        else:
+                            self.log("Brak pliku transkrypcji do analizy OSINT.")
             
                 # Sprzątanie (tylko YouTube)
                 if is_youtube_mode and self.delete_video_var.get() and video_file:
