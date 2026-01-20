@@ -12,7 +12,7 @@ class Transcriber:
         self.current_model = None
 
     def transcribe_video(self, filename, language, model_size):
-        """Transkrybuje plik używając Whisper"""
+        """Transkrybuje plik używając Whisper (Generator)"""
         if self.stop_event.is_set():
             raise InterruptedError("Operacja anulowana przez użytkownika")
         
@@ -43,39 +43,52 @@ class Transcriber:
         self.logger.log(f"Rozpoczynam transkrypcję (język: {language or 'auto'})...")
 
         try:
+            # Faster-Whisper transcribe returns (segments_generator, info)
             segments, info = model.transcribe(
                 filename,
                 language=language,
                 beam_size=5,
                 vad_filter=True,
             )
-            segments = list(segments)
+            # DO NOT list(segments) here - keep it as generator!
         except Exception as e:
             raise Exception(f"Błąd podczas transkrypcji: {str(e)}")
 
         return segments, info
 
     def save_transcription(self, segments, info, filename, output_format, language):
-        """Zapisuje transkrypcję"""
+        """Zapisuje transkrypcję iterując po generatorze. Zwraca (ścieżka, pełny_tekst)."""
         base_name = os.path.splitext(filename)[0]
+        full_text = ""
+        output_file = ""
+        
+        # Note: We can only consume the generator ONCE.
+        # So we must build full_text while saving.
         
         if output_format == "txt":
             output_file = base_name + "_transkrypcja.txt"
-            self._save_txt(segments, info, output_file, language)
+            full_text = self._save_txt(segments, info, output_file, language)
         elif output_format == "srt":
             output_file = base_name + "_transkrypcja.srt"
-            self._save_srt(segments, output_file)
+            full_text = self._save_srt(segments, output_file)
         elif output_format == "vtt":
             output_file = base_name + "_transkrypcja.vtt"
-            self._save_vtt(segments, output_file)
+            full_text = self._save_vtt(segments, output_file)
         elif output_format == "txt_no_timestamps":
             output_file = base_name + "_transkrypcja.txt"
-            self._save_txt_no_timestamps(segments, info, output_file, language)
+            full_text = self._save_txt_no_timestamps(segments, info, output_file, language)
         else:
             output_file = base_name + "_transkrypcja.txt"
-            self._save_txt(segments, info, output_file, language)
+            full_text = self._save_txt(segments, info, output_file, language)
 
-        return output_file
+        # Cleanup memory after consumption
+        self.current_model = None
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        return output_file, full_text
 
     def _save_txt(self, segments, info, filename, language):
         full_text = ""
@@ -91,6 +104,8 @@ class Transcriber:
                 
                 line = f"[{format_time(segment.start)} -> {format_time(segment.end)}] {segment.text}\n"
                 f.write(line)
+                f.flush() # CRITICAL: Write immediately to disk
+                
                 full_text += segment.text + " "
                 
                 if hasattr(info, 'duration') and info.duration > 0:
@@ -112,6 +127,7 @@ class Transcriber:
                     raise InterruptedError("Anulowano")
                 
                 f.write(segment.text + " ")
+                f.flush()
                 full_text += segment.text + " "
                 
                 if hasattr(info, 'duration') and info.duration > 0:
@@ -121,6 +137,7 @@ class Transcriber:
         return full_text.strip()
 
     def _save_srt(self, segments, filename):
+        full_text = ""
         with open(filename, "w", encoding="utf-8") as f:
             for i, segment in enumerate(segments, 1):
                 if self.stop_event.is_set():
@@ -129,8 +146,17 @@ class Transcriber:
                 start = format_srt_time(segment.start)
                 end = format_srt_time(segment.end)
                 f.write(f"{i}\n{start} --> {end}\n{segment.text}\n\n")
+                f.flush()
+                
+                full_text += segment.text + " "
+                # Note: SRT doesn't easily map to % without info.duration passed down, 
+                # but we can try if Transcriber had info stored. 
+                # For now assuming progress handled elsewhere or acceptable limitation for SRT.
+
+        return full_text.strip()
 
     def _save_vtt(self, segments, filename):
+        full_text = ""
         with open(filename, "w", encoding="utf-8") as f:
             f.write("WEBVTT\n\n")
             for segment in segments:
@@ -140,3 +166,8 @@ class Transcriber:
                 start = format_vtt_time(segment.start)
                 end = format_vtt_time(segment.end)
                 f.write(f"{start} --> {end}\n{segment.text}\n\n")
+                f.flush()
+                
+                full_text += segment.text + " "
+
+        return full_text.strip()
