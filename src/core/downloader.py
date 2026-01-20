@@ -24,7 +24,7 @@ class Downloader:
             "writeinfojson": False,
             "keepvideo": False,
             "noplaylist": True, # Najpierw sprawdzamy, potem decydujemy
-            "socket_timeout": 30,
+            "socket_timeout": 300,
             "quiet": True,
             "no_warnings": True
         }

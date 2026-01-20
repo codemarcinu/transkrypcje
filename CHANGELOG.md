@@ -1,3 +1,28 @@
+# Changelog - Wersja 3.2 (Rescue Plan v2)
+
+## 🚀 Nowości: Silnik Analityczny OSINT v2
+
+### 1. **Integracja z modelem Bielik-11B-v3.0**
+- Przejście na polski model językowy `Bielik-11B-Instruct`
+- Dostosowanie promptów do języka polskiego i specyfiki modelu
+- Drastyczna poprawa jakości raportów OSINT
+
+### 2. **Smart Chunking (Inteligentne dzielenie tekstu)**
+- Nowy moduł `src/utils/text_processing.py`
+- Dzielenie tekstu z uwzględnieniem granic zdań i akapitów
+- Eliminacja problemu "uciętych wątków" w połowie zdania
+
+### 3. **Architektura Map-Reduce**
+- Nowa logika w `OsintAnalyzer` pozwalająca na analizę materiałów dowolnej długości
+- Etap MAP: Analiza fragmentów i ekstrakcja notatek
+- Etap REDUCE: Synteza końcowego raportu z notatek
+- Obsługa streamingu odpowiedzi z Ollama
+
+### 4. **Konfiguracja**
+- Scentralizowana konfiguracja modelu w `src/utils/config.py`
+- Obsługa zmiennej środowiskowej `OLLAMA_MODEL`
+
+---
 # Changelog - Wersja 3.0
 
 ## 🎉 Wszystkie ulepszenia zostały zaimplementowane!

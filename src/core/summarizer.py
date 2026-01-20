@@ -1,4 +1,5 @@
 import requests
+import os
 
 class Summarizer:
     def __init__(self, logger, stop_event, progress_callback):
@@ -29,6 +30,26 @@ class Summarizer:
             return []
 
     def summarize_text(self, text, model_name=None, max_chars=10000, style="Zwięzłe (3 punkty)"):
+        # Legacy support for text input
+        return self._run_summarization(text[:max_chars], model_name, style)
+
+    def summarize_from_file(self, file_path, model_name=None, max_chars=10000, style="Zwięzłe (3 punkty)"):
+        if not file_path or not os.path.exists(file_path):
+            self.logger.log("Brak pliku do podsumowania.")
+            return None
+        
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                # Read only needed amount
+                text = f.read(max_chars)
+                if f.read(1): # Check if there is more
+                    self.logger.log(f"Tekst z pliku został obcięty do {max_chars} znaków")
+                return self._run_summarization(text, model_name, style)
+        except Exception as e:
+            self.logger.log(f"Błąd odczytu pliku: {e}")
+            return None
+
+    def _run_summarization(self, text_to_summarize, model_name, style):
         if self.stop_event.is_set():
             raise InterruptedError("Operacja anulowana przez użytkownika")
         
@@ -54,13 +75,9 @@ class Summarizer:
                     if "llama3" in m or "mistral" in m:
                         selected_model = m
                         break
-
+            
             self.logger.log(f"Używam modelu: {selected_model} do podsumowania.")
             self.progress_callback(20, "summarizing")
-
-            text_to_summarize = text[:max_chars]
-            if len(text) > max_chars:
-                self.logger.log(f"Tekst został obcięty do {max_chars} znaków")
 
             if "Krótkie" in style:
                 prompt_text = "Napisz krótkie streszczenie tego tekstu w jednym akapicie (po polsku)"

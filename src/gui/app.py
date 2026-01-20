@@ -524,23 +524,23 @@ class App:
                     segments_gen, info = processor.transcribe_video(video_file, language, model_size)
                     
                     output_base = os.path.join(save_path, base_name)
-                    # NOTE: save_transcription now consumes generator and returns (filepath, full_text)
-                    txt_file, full_transcription_text = processor.save_transcription(segments_gen, info, output_base, output_format, language)
+                    # NOTE: returns only filepath now
+                    txt_file = processor.save_transcription(segments_gen, info, output_base, output_format, language)
                     
                     all_output_files.append(txt_file)
                     self.log(f"Transkrypcja gotowa: {os.path.basename(txt_file)}")
 
                     # Podsumowanie
                     if do_summarize:
-                        if full_transcription_text:
-                            summary = processor.summarize_text(full_transcription_text.strip(), style=summary_style)
+                        if txt_file and os.path.exists(txt_file):
+                            summary = processor.summarize_from_file(txt_file, style=summary_style)
                             if summary:
                                 summary_file = os.path.splitext(output_base)[0] + "_podsumowanie.txt"
                                 with open(summary_file, "w", encoding="utf-8") as f: f.write(summary)
                                 all_output_files.append(summary_file)
                                 self.log(f"Podsumowanie gotowe: {os.path.basename(summary_file)}")
                         else:
-                             self.log("Brak treści do podsumowania.")
+                             self.log("Brak pliku do podsumowania.")
                              
                     # Analiza OSINT
                     if do_osint:

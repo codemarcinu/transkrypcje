@@ -3,6 +3,7 @@ from src.core.transcriber import Transcriber
 from src.core.summarizer import Summarizer
 from src.core.osint_analyzer import OsintAnalyzer
 from src.utils.helpers import validate_url, validate_path, check_disk_space, check_ffmpeg
+from src.utils.config import DEFAULT_OLLAMA_MODEL
 
 class Processor:
     def __init__(self, logger, stop_event, progress_callback):
@@ -11,7 +12,6 @@ class Processor:
         self.progress_callback = progress_callback
         
         self.downloader = Downloader(logger, stop_event, progress_callback)
-        self.transcriber = Transcriber(logger, stop_event, progress_callback)
         self.transcriber = Transcriber(logger, stop_event, progress_callback)
         self.summarizer = Summarizer(logger, stop_event, progress_callback)
         self.osint_analyzer = OsintAnalyzer(logger, stop_event, progress_callback)
@@ -48,5 +48,8 @@ class Processor:
     def summarize_text(self, text, model_name=None, max_chars=10000, style="Zwięzłe (3 punkty)"):
         return self.summarizer.summarize_text(text, model_name, max_chars, style)
 
-    def run_osint_analysis(self, input_file, output_file, model_logic="qwen2.5:14b", model_style="qwen2.5:14b"):
-        return self.osint_analyzer.analyze_transcription(input_file, output_file, model_logic, model_style)
+    def summarize_from_file(self, file_path, model_name=None, max_chars=10000, style="Zwięzłe (3 punkty)"):
+        return self.summarizer.summarize_from_file(file_path, model_name, max_chars, style)
+
+    def run_osint_analysis(self, input_file, output_file):
+        return self.osint_analyzer.analyze_transcription(input_file, output_file, model_name=DEFAULT_OLLAMA_MODEL)

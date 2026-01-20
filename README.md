@@ -16,7 +16,8 @@ Aplikacja desktopowa do pobierania wideo z YouTube (w tym playlist), transkrypcj
 - **System**: Linux / Windows / macOS
 - **Python**: 3.8+
 - **FFmpeg**: Zainstalowany i dostępny w PATH.
-- **Ollama**: (Opcjonalnie) Uruchomiony serwer Ollama do podsumowań.
+- **Ollama**: Uruchomiony serwer Ollama.
+- **Model AI**: Zalecany `bielik-11b-v3.0-instruct:Q5_K_M` dla analizy OSINT.
 
 ## 📦 Instalacja
 

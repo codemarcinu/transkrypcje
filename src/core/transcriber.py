@@ -57,29 +57,27 @@ class Transcriber:
         return segments, info
 
     def save_transcription(self, segments, info, filename, output_format, language):
-        """Zapisuje transkrypcję iterując po generatorze. Zwraca (ścieżka, pełny_tekst)."""
+        """Zapisuje transkrypcję iterując po generatorze. Zwraca ścieżkę do pliku."""
         base_name = os.path.splitext(filename)[0]
-        full_text = ""
         output_file = ""
         
         # Note: We can only consume the generator ONCE.
-        # So we must build full_text while saving.
         
         if output_format == "txt":
             output_file = base_name + "_transkrypcja.txt"
-            full_text = self._save_txt(segments, info, output_file, language)
+            self._save_txt(segments, info, output_file, language)
         elif output_format == "srt":
             output_file = base_name + "_transkrypcja.srt"
-            full_text = self._save_srt(segments, output_file)
+            self._save_srt(segments, output_file)
         elif output_format == "vtt":
             output_file = base_name + "_transkrypcja.vtt"
-            full_text = self._save_vtt(segments, output_file)
+            self._save_vtt(segments, output_file)
         elif output_format == "txt_no_timestamps":
             output_file = base_name + "_transkrypcja.txt"
-            full_text = self._save_txt_no_timestamps(segments, info, output_file, language)
+            self._save_txt_no_timestamps(segments, info, output_file, language)
         else:
             output_file = base_name + "_transkrypcja.txt"
-            full_text = self._save_txt(segments, info, output_file, language)
+            self._save_txt(segments, info, output_file, language)
 
         # Cleanup memory after consumption
         self.current_model = None
@@ -88,10 +86,9 @@ class Transcriber:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        return output_file, full_text
+        return output_file
 
     def _save_txt(self, segments, info, filename, language):
-        full_text = ""
         with open(filename, "w", encoding="utf-8") as f:
             detected_lang = getattr(info, 'language', language or 'nieznany')
             lang_prob = getattr(info, 'language_probability', 0.0)
@@ -106,16 +103,11 @@ class Transcriber:
                 f.write(line)
                 f.flush() # CRITICAL: Write immediately to disk
                 
-                full_text += segment.text + " "
-                
                 if hasattr(info, 'duration') and info.duration > 0:
                     percent = (segment.end / info.duration) * 100
                     self.progress_callback(percent, "transcribing")
 
-        return full_text.strip()
-
     def _save_txt_no_timestamps(self, segments, info, filename, language):
-        full_text = ""
         with open(filename, "w", encoding="utf-8") as f:
             detected_lang = getattr(info, 'language', language or 'nieznany')
             lang_prob = getattr(info, 'language_probability', 0.0)
@@ -128,16 +120,12 @@ class Transcriber:
                 
                 f.write(segment.text + " ")
                 f.flush()
-                full_text += segment.text + " "
                 
                 if hasattr(info, 'duration') and info.duration > 0:
                     percent = (segment.end / info.duration) * 100
                     self.progress_callback(percent, "transcribing")
 
-        return full_text.strip()
-
     def _save_srt(self, segments, filename):
-        full_text = ""
         with open(filename, "w", encoding="utf-8") as f:
             for i, segment in enumerate(segments, 1):
                 if self.stop_event.is_set():
@@ -147,13 +135,7 @@ class Transcriber:
                 end = format_srt_time(segment.end)
                 f.write(f"{i}\n{start} --> {end}\n{segment.text}\n\n")
                 f.flush()
-                
-                full_text += segment.text + " "
-                # Note: SRT doesn't easily map to % without info.duration passed down, 
-                # but we can try if Transcriber had info stored. 
-                # For now assuming progress handled elsewhere or acceptable limitation for SRT.
 
-        return full_text.strip()
 
     def _save_vtt(self, segments, filename):
         full_text = ""
