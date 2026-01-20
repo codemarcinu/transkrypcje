@@ -73,6 +73,14 @@ class Downloader:
                     "preferredquality": audio_quality,
                 }],
             })
+            
+        # Subtitle options
+        final_opts.update({
+            "writesubtitles": True,
+            "writeautomaticsubtitles": True,
+            "subtitleslangs": ['pl', 'en', 'en-US', 'en-GB'],
+            "subtitlesformat": "vtt/srt/best", 
+        })
 
         downloaded_files = []
         total_items = len(entries)
@@ -124,7 +132,32 @@ class Downloader:
                     if os.path.exists(filename):
                         size_str = get_file_size(filename)
                         self.logger.log(f"Pobrano: {os.path.basename(filename)} ({size_str})")
-                        downloaded_files.append(filename)
+                        
+                        # Check for subtitles
+                        subtitle_file = None
+                        base_no_ext = os.path.splitext(filename)[0]
+                        # Prioritize Polish then English, VTT then SRT
+                        # yt-dlp naming: filename.lang.vtt
+                        search_suffixes = ['.pl.vtt', '.en.vtt', '.vtt', '.pl.srt', '.en.srt', '.srt']
+                        # Also check auto-generated ones which might have slightly different naming depending on config, 
+                        # but usually adhere to similar pattern or just .vtt if only one lang downloaded.
+                        
+                        # We glob or check specific candidates
+                        parent_dir = os.path.dirname(filename)
+                        base_name = os.path.basename(base_no_ext)
+                        
+                        # Simple check for likely candidates
+                        for suffix in search_suffixes:
+                            candidate = base_no_ext + suffix
+                            if os.path.exists(candidate):
+                                subtitle_file = candidate 
+                                self.logger.log(f"Znaleziono napisy: {os.path.basename(subtitle_file)}")
+                                break
+                        
+                        downloaded_files.append({
+                            "video": filename,
+                            "subtitles": subtitle_file
+                        })
 
             except yt_dlp.utils.DownloadError as e:
                 error_msg = str(e)

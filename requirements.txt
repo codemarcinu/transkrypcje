@@ -5,3 +5,5 @@ colorama
 langchain-text-splitters
 instructor
 requests
+streamlit
+watchdog
