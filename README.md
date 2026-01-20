@@ -6,14 +6,19 @@ Projekt przekształca surowe transkrypcje wideo w profesjonalne, ustrukturyzowan
 
 System działa w trzech fazach:
 
-1.  **Ekstrakcja (Map)**
+1.  **Pozyskiwanie i Transkrypcja**
+    - **YouTube**: Automatyczne pobieranie wideo/audio.
+    - **Optymalizacja**: System automatycznie wykrywa i pobiera napisy z YouTube (PL/EN), co pozwala na ominięcie procesu transkrypcji i natychmiastowe przejście do analizy.
+    - **Whisper**: Jeśli napisy nie są dostępne, system wykorzystuje modele **Faster-Whisper** do lokalnej transkrypcji z wykorzystaniem GPU.
+
+2.  **Ekstrakcja Wiedzy (Map)**
     - **Agent**: `Extractor` (oparty na **Qwen 2.5 14B**)
-    - **Zadanie**: Analizuje tekst fragment po fragmencie, wyciągając twarde dane: narzędzia, pojęcia, porady.
+    - **Zadanie**: Analizuje tekst fragment po fragmencie, wyciągając kluczowe informacje, techniki i pojęcia.
     - **Wynik**: Baza wiedzy w formacie JSON (`data/processed/`).
 
-2.  **Redukcja (Reduce)**
+3.  **Generowanie Treści (Reduce)**
     - **Agent**: `Writer` (oparty na **Bielik 11B v3**)
-    - **Zadanie**: Agreguje zebraną wiedzę i pisze spójny rozdział w Markdown.
+    - **Zadanie**: Agreguje zebraną wiedzę i pisze spójny rozdział podręcznika lub opracowanie na zadany temat.
     - **Cechy**: Styl techniczny, inżynierski konkret, brak lania wody.
 
 3.  **Optymalizacja Modelu**
@@ -57,11 +62,19 @@ ollama create bielik-writer -f Modelfile
 pip install -r requirements.txt
 ```
 
-### 4. Uruchomienie
-1.  Wrzuć plik transkrypcji do `data/raw/`.
-2.  Edytuj `main_pipeline.py`, ustawiając zmienną `TARGET_FILE` na nazwę swojego pliku.
-3.  Uruchom pipeline:
+### 4. Uruchomienie (GUI)
+Najwygodniej korzystać z interfejsu Streamlit:
+```bash
+./run_streamlit.sh
+```
+Interfejs oferuje trzy główne moduły:
+- **YouTube**: Pobieranie z opcją automatycznego wykorzystania istniejących napisów (najszybsza metoda).
+- **Pliki Lokalne**: Przetwarzanie plików wideo/audio z dysku.
+- **Generowanie Treści**: Pozwala na ponowne przetworzenie istniejących transkrypcji i wygenerowanie opracowania na wybrany temat (nie tylko OSINT!).
 
+### 5. Uruchomienie (CLI)
+1.  Wrzuć plik transkrypcji do `data/raw/` (lub użyj istniejącego w `data/output/`).
+2.  Uruchom pipeline:
 ```bash
 python main_pipeline.py
 ```

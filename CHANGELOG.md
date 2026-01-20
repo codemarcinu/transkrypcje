@@ -1,3 +1,24 @@
+# Changelog - Wersja 3.3 (YouTube Subtitles & Generic Content)
+
+## 🚀 Nowości: Optymalizacja i Generalizacja
+
+### 1. **Obsługa napisów z YouTube**
+- Automatyczne wykrywanie i pobieranie napisów/napisów generowanych (PL/EN)
+- Pomijanie procesu transkrypcji Whisperem w przypadku znalezienia napisów (znaczące przyspieszenie pracy)
+- Nowy moduł `src/utils/subtitle_converter.py` do konwersji VTT/SRT na format transkrypcji
+
+### 2. **Zgeneralizowane Generowanie Treści**
+- Nowa zakładka "Generowanie Treści" w GUI (Streamlit)
+- Możliwość wyboru dowolnego pliku transkrypcji z folderu `data/output/`
+- Dynamiczne ustawianie tematu/tytułu opracowania (nie tylko dla OSINT)
+- Parametryzacja pipeline'u `main_pipeline.py` o zmienną `topic`
+
+### 3. **Usprawnienia GUI**
+- Dodano checkbox "Pobierz napisy (jeśli dostępne)" w zakładce YouTube
+- Rozdzielenie procesów pobierania, transkrypcji i generowania treści na logiczne zakładki
+
+---
+
 # Changelog - Wersja 3.2 (Rescue Plan v2)
 
 ## 🚀 Nowości: Silnik Analityczny OSINT v2

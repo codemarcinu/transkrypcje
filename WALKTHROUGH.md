@@ -57,3 +57,19 @@ if clean_url not in source_text:
 ## Next Steps
 - Run the application and test with a long video to confirm memory usage is stable.
 - Verify that "Cancel" button works instantly during OSINT analysis.
+
+---
+
+# Walkthrough: YouTube Subtitles & Generic Content (v3.3)
+
+I have implemented support for using existing YouTube subtitles and a new GUI section for generic content generation.
+
+### 1. YouTube Subtitles Support
+Aplikacja automatycznie wyszukuje napisy (pl/en) na YouTube. Jeśli zostaną znalezione, proces transkrypcji Whisperem jest pomijany, co znacznie skraca czas oczekiwania.
+
+### 2. Generowanie Treści (Tab "Generowanie Treści")
+Dodano dedykowaną zakładkę do tworzenia opracowań z istniejących plików transkrypcji. Można teraz podać dowolny temat (nie tylko OSINT), który stanie się tytułem wygenerowanego podręcznika.
+
+### 3. Parametryzacja Pipeline
+`main_pipeline.py` został dostosowany do przyjmowania dynamicznego tematu, co pozwala na generowanie różnorodnych treści edukacyjnych.
+
