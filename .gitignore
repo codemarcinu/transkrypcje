@@ -30,9 +30,13 @@ models/
 app_debug.log
 *.log
 
-# Large data files (transcripts)?
-# Uncomment if you want to ignore transcripts
-# *_transkrypcja.txt
+# Data directories
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/output/*
+!data/output/.gitkeep
 
 # Generated pipeline files
 intermediate_notes.json
