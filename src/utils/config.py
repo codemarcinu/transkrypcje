@@ -1,8 +1,10 @@
 import os
 
 # Konfiguracja modeli
+# Konfiguracja modeli
 MODEL_EXTRACTOR = "qwen2.5:14b"
 MODEL_WRITER = "bielik-writer"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
 # Parametry przetwarzania
 CHUNK_SIZE = 8000  # Znaków na fragment (Qwen ma duże okno kontekstowe)
