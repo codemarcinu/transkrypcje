@@ -33,3 +33,8 @@ app_debug.log
 # Large data files (transcripts)?
 # Uncomment if you want to ignore transcripts
 # *_transkrypcja.txt
+
+# Generated pipeline files
+intermediate_notes.json
+pipeline_log.txt
+Narzędziownik OSINT 2.0 Reloaded - sesja 6_transkrypcja.txt
