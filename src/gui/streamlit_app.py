@@ -55,17 +55,16 @@ def main():
     with st.sidebar:
         st.header("⚙️ Konfiguracja")
         
-        # Primary Switches
-        st.subheader("Główne zadania")
-        do_transcribe = st.checkbox("Wykonaj transkrypcję", value=True, help="Używa Whisper do zamiany mowy na tekst")
-        download_subs = st.checkbox("Pobierz napisy", value=True, help="Jeśli YouTube posiada napisy, użyjemy ich zamiast Whisper (szybciej!)")
-        do_summarize = st.checkbox("Generuj podsumowanie", value=True)
-        do_content_gen = st.checkbox("Generuj Podręcznik (Treść)", value=False)
-        
-        st.divider()
-        
         # Advanced Expander
-        with st.expander("🛠️ Ustawienia Zaawansowane"):
+        with st.expander("🛠️ Ustawienia Zaawansowane", expanded=False):
+            st.subheader("Główne zadania")
+            do_transcribe = st.checkbox("Wykonaj transkrypcję", value=True, help="Używa Whisper do zamiany mowy na tekst")
+            download_subs = st.checkbox("Pobierz napisy", value=True, help="Jeśli YouTube posiada napisy, użyjemy ich zamiast Whisper (szybciej!)")
+            do_summarize = st.checkbox("Generuj podsumowanie", value=True)
+            do_content_gen = st.checkbox("Generuj Podręcznik (Treść)", value=False)
+            
+            st.divider()
+            
             output_path = st.text_input("Folder zapisu:", value=os.path.abspath(DATA_OUTPUT))
             
             st.divider()
@@ -81,6 +80,11 @@ def main():
             # AI Processing Settings
             st.markdown("**Parametry Analizy**")
             summary_style = st.selectbox("Styl podsumowania:", options=["Zwięzłe (3 punkty)", "Krótkie (1 akapit)", "Szczegółowe (Pełne)"])
+        
+        st.info("💡 Skonfiguruj zadania w 'Ustawieniach Zaawansowanych', jeśli chcesz zmienić domyślne parametry.")
+
+    # Static settings from audit
+    yt_audio_quality = "128" # Fixed for Whisper
             
     # --- Main Content ---
     
@@ -96,12 +100,8 @@ def main():
         yt_url = st.text_input("Wklej link do YouTube (Wideo lub Playlista):")
         
         with st.expander("Opcje pobierania"):
-            col1, col2 = st.columns(2)
-            with col1:
-                yt_quality = st.selectbox("Jakość wideo:", ["best", "worst", "audio_only"])
-            with col2:
-                # Auditor suggested hiding this or simplifying. Let's keep it in expander but simplify defaults.
-                yt_audio_quality = st.selectbox("Jakość audio (kbps):", ["128", "192", "256", "320"], index=1) # Default 192
+            yt_quality = st.selectbox("Jakość wideo:", ["best", "worst", "audio_only"])
+            # yt_audio_quality is now simplified and hidden (set to 128k in logic)
             
         start_yt = st.button("🚀 Uruchom Przetwarzanie", type="primary", disabled=not yt_url, key="btn_start_yt")
 
@@ -132,7 +132,7 @@ def main():
              clean_name = selected_file_name.replace('_transkrypcja.txt', '').replace('.txt', '').replace('_', ' ').title()
              default_topic = clean_name
              
-        topic_input = st.text_input("✨ Temat / Tytuł opracowania AI:", value=default_topic)
+        topic_input = st.text_input("✨ Temat / Tytuł opracowania AI:", value=default_topic, key=f"topic_{selected_file_name}")
         
         start_content_gen = st.button("✍️ Generuj Treść (Tylko AI)", type="primary", disabled=not selected_file_name)
 
@@ -166,6 +166,7 @@ def main():
                     
                     logger.log(f"Rozpoczynam generowanie treści dla: {selected_file_name}")
                     processor.run_content_generation(input_full_path, final_md_path, topic=topic_input)
+                    st.session_state['last_generated_file'] = final_md_path
                     st.success("✅ Generowanie treści zakończone!")
 
                 # CASE 2: Full Pipeline (YT or Local)
@@ -234,19 +235,26 @@ def main():
                                 processor.run_content_generation(txt_file, final_md_path, topic=auto_topic)
                                 logger.log(f"Treść wygenerowana.")
                     
-                    st.success("✅ Zakończono pomyślnie!")
-
-                # --- Markdown Preview ---
+                # --- Markdown Preview Logic ---
                 if final_md_path and os.path.exists(final_md_path):
-                    st.divider()
-                    st.markdown("### 📄 Podgląd wygenerowanej treści:")
-                    with open(final_md_path, 'r', encoding='utf-8') as f:
-                        md_content = f.read()
-                    st.markdown(md_content)
+                    st.session_state['last_generated_file'] = final_md_path
             
+            st.success("✅ Zakończono pomyślnie!")
+
         except Exception as e:
             st.error(f"❌ Wystąpił błąd: {e}")
             logger.log(f"ERROR: {e}")
+
+    # --- Markdown Preview Persistent Display ---
+    if 'last_generated_file' in st.session_state:
+        final_md_path = st.session_state['last_generated_file']
+        if os.path.exists(final_md_path):
+            st.divider()
+            st.markdown("### 📄 Podgląd wygenerowanej treści:")
+            with open(final_md_path, 'r', encoding='utf-8') as f:
+                md_content = f.read()
+            st.markdown(md_content)
+            st.download_button("💾 Pobierz plik Markdown", md_content, file_name=os.path.basename(final_md_path))
 
     # --- Logs Display ---
     st.divider()

@@ -65,13 +65,16 @@ pip install -r requirements.txt
 ### 4. Uruchomienie (GUI)
 Najwygodniej korzystać z nowoczesnego interfejsu Streamlit:
 
-*   **Windows**: Kliknij dwukrotnie w `start_windows.bat`.
+*   **Windows**: Kliknij dwukrotnie w `run_app.bat`.
 *   **Linux/macOS**: Uruchom `./run_streamlit.sh`.
 
-Interfejs oferuje trzy główne moduły:
+Interfejs oferuje główne moduły:
 - **📺 YouTube**: Pobieranie z opcją automatycznego wykorzystania istniejących napisów (najszybsza metoda).
 - **📂 Pliki Lokalne**: Przetwarzanie plików wideo/audio z dysku.
-- **📝 Generowanie Treści**: Pozwala na ponowne przetworzenie istniejących transkrypcji i wygenerowanie opracowania na wybrany temat.
+- **📝 Generowanie Treści**: Pozwala na ponowne przetworzenie istniejących transkrypcji i wygenerowanie opracowania na wybrany temat z podglądem na żywo.
+
+> [!TIP]
+> Wszystkie techniczne opcje (wybór modelu, języka, folderów) zostały ukryte w zakładce **"⚙️ Ustawienia Zaawansowane"** w bocznym panelu, aby interfejs pozostawał przejrzysty.
 
 > [!NOTE]
 > Oryginalny interfejs Tkinter został przeniesiony do `src/gui/legacy/` i można go uruchomić za pomocą `run_legacy_gui.bat` (niepolecane).
