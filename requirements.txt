@@ -1,5 +1,4 @@
-yt-dlp==2023.11.16
-faster-whisper
-torch
-requests==2.31.0
-ollama==0.1.6
+ollama>=0.1.6
+pydantic>=2.0.0
+tqdm
+colorama
