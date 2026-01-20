@@ -20,4 +20,4 @@ fi
 
 # Uruchom aplikację
 echo "Uruchamianie aplikacji..."
-python3 yt_ai_downloader.py
+python3 main.py
