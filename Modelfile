@@ -1,0 +1,25 @@
+FROM SpeakLeash/bielik-11b-v3.0-instruct:Q5_K_M
+
+# 1. Ustawienie parametrów (Wnioski z repozytorium SpeakLeash)
+# Zapobiega pętlom i powtórzeniom (bardzo ważne dla PL)
+PARAMETER repeat_penalty 1.15
+# Zwiększa "okno patrzenia wstecz" przy unikaniu powtórzeń
+PARAMETER repeat_last_n 64
+# Temperatura 0.6 jest idealna do pisania technicznego (nie za sztywna, nie za kreatywna)
+PARAMETER temperature 0.6
+# Context window (Bielik v3 obsługuje do 32k, ale 8k wystarczy na rozdział i oszczędza VRAM)
+PARAMETER num_ctx 8192
+
+# 2. Wymuszenie formatu ChatML (Zgodnie z dokumentacją Bielik v3)
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+"""
+
+# 3. Domyślny System Prompt (To ustawia "osobowość" modelu)
+SYSTEM """
+Jesteś profesjonalnym redaktorem technicznym. Piszesz w języku polskim. 
+Twoim celem jest tworzenie precyzyjnych, merytorycznych tekstów na podstawie dostarczonych danych.
+"""
