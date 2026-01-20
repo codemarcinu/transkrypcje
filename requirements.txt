@@ -1,5 +1,5 @@
 yt-dlp==2023.11.16
-faster-whisper==0.10.0
-torch==2.1.1
+faster-whisper
+torch
 requests==2.31.0
 ollama==0.1.6
