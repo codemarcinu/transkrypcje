@@ -126,6 +126,16 @@ class Downloader:
                         self.logger.log(f"Pobrano: {os.path.basename(filename)} ({size_str})")
                         downloaded_files.append(filename)
 
+            except yt_dlp.utils.DownloadError as e:
+                error_msg = str(e)
+                self.logger.log(f"Błąd pobierania elementu {i}: {error_msg}")
+                
+                # Check for common signatures of outdated version
+                if "Sign in to confirm you’re not a bot" in error_msg or "HTTP Error 403" in error_msg:
+                    self.logger.log("KRYTYCZNY BŁĄD: Prawdopodobnie Twoja wersja 'yt-dlp' jest przestarzała.")
+                    self.logger.log("ROZWIĄZANIE: Zaktualizuj biblioteki komendą: pip install -U yt-dlp")
+                
+                continue
             except Exception as e:
                 self.logger.log(f"Błąd pobierania elementu {i}: {e}")
                 continue
