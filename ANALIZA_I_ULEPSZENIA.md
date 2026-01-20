@@ -8,15 +8,12 @@ Aplikacja GUI w Tkinter do pobierania filmów z YouTube, transkrypcji audio do t
 ## 🔴 PROBLEMY FUNKCJONALNOŚCI
 
 ### 1. **Brak możliwości anulowania operacji**
-- `stop_event` jest zdefiniowane ale nigdy nie używane
-- Użytkownik nie może przerwać długotrwałej operacji
-- **Rozwiązanie**: Dodać przycisk "Anuluj" i implementację przerwania
+- [ROZWIĄZANE] Dodano obsługę `stop_event` we wszystkich modułach (Downloader, Transcriber, Summarizer) oraz przycisk "ANULUJ" w GUI.
+
 
 ### 2. **Brak walidacji ścieżki zapisu**
-- Nie sprawdza czy katalog istnieje
-- Nie sprawdza czy jest dostęp do zapisu
-- Nie sprawdza czy jest wystarczająco miejsca na dysku
-- **Rozwiązanie**: Dodać walidację przed rozpoczęciem
+- [ROZWIĄZANE] Dodano walidację w `Processor.validate_path` oraz sprawdzenie przed uruchomieniem procesu.
+
 
 ### 3. **Brak obsługi duplikatów plików**
 - Nie sprawdza czy plik już istnieje
@@ -30,23 +27,20 @@ Aplikacja GUI w Tkinter do pobierania filmów z YouTube, transkrypcji audio do t
 - **Rozwiązanie**: Dodać timeout, retry i resume
 
 ### 5. **Ograniczone opcje konfiguracji**
-- Brak wyboru języka transkrypcji (hardcoded "pl")
-- Brak wyboru rozmiaru modelu Whisper (hardcoded "medium")
-- Brak wyboru formatu wyjściowego (tylko txt)
-- Brak wyboru modelu Ollama z GUI
-- **Rozwiązanie**: Dodać opcje konfiguracji w GUI
+- [ROZWIĄZANE] Dodano wybór języka, modelu Whisper, formatu wyjściowego oraz stylu podsumowania w GUI.
+
 
 ### 6. **Brak obsługi playlist YouTube**
-- Nie można pobrać całej playlisty
-- **Rozwiązanie**: Dodać obsługę playlist
+- [ROZWIĄZANE] Zaimplementowano obsługę playlist w `Downloader`. Aplikacja wykrywa playlistę i pobiera/przetwarza pliki sekwencyjnie.
+
 
 ### 7. **Brak informacji o wideo przed pobraniem**
 - Nie pokazuje tytułu, długości, rozmiaru przed pobraniem
 - **Rozwiązanie**: Dodać preview przed pobraniem
 
 ### 8. **Brak obsługi błędów FFmpeg**
-- Nie sprawdza czy FFmpeg jest zainstalowany
-- **Rozwiązanie**: Dodać sprawdzenie i czytelny komunikat błędu
+- [ROZWIĄZANE] Dodano funkcję `check_ffmpeg` uruchamianą przy starcie aplikacji. Wyświetla ostrzeżenie w przypadku braku FFmpeg.
+
 
 ### 9. **Błędne użycie atrybutów info**
 - `info.title` i `info.duration` mogą nie istnieć w obiekcie zwróconym przez Whisper
@@ -69,42 +63,40 @@ Aplikacja GUI w Tkinter do pobierania filmów z YouTube, transkrypcji audio do t
 ## 🟡 PROBLEMY UX (User Experience)
 
 ### 1. **Brak przycisku "Anuluj"**
-- Użytkownik nie może przerwać operacji
-- **Rozwiązanie**: Dodać przycisk "Anuluj" który zastępuje "START" podczas operacji
+- [ROZWIĄZANE] Przycisk "ANULUJ" jest widoczny i aktywny podczas trwania procesu.
+
 
 ### 2. **Brak wskaźnika czasu pozostałego**
 - Użytkownik nie wie ile czasu zajmie operacja
 - **Rozwiązanie**: Dodać szacowany czas na podstawie postępu
 
 ### 3. **Brak informacji o rozmiarze pliku**
-- Nie pokazuje rozmiaru pobieranego pliku
-- **Rozwiązanie**: Dodać wyświetlanie rozmiaru
+- [ROZWIĄZANE] Rozmiar pliku jest wyświetlany pod paskiem postępu po rozpoczęciu pobierania.
+
 
 ### 4. **Brak możliwości otwarcia folderu z plikami**
-- Trzeba ręcznie szukać plików
-- **Rozwiązanie**: Dodać przycisk "Otwórz folder" po zakończeniu
+- [ROZWIĄZANE] Po zakończeniu procesu pojawiają się przyciski umożliwiające otwarcie folderu oraz poszczególnych plików.
+
 
 ### 5. **Brak możliwości otwarcia pliku transkrypcji**
 - Trzeba ręcznie otwierać plik
 - **Rozwiązanie**: Dodać przycisk "Otwórz transkrypcję"
 
 ### 6. **Brak możliwości kopiowania logów**
-- Nie można skopiować logów do schowka
-- **Rozwiązanie**: Dodać menu kontekstowe z opcją kopiowania
+- [ROZWIĄZANE] Dodano przycisk "Kopiuj" w sekcji logów.
+
 
 ### 7. **Brak możliwości czyszczenia logów**
-- Logi się gromadzą i zajmują miejsce
-- **Rozwiązanie**: Dodać przycisk "Wyczyść logi"
+- [ROZWIĄZANE] Dodano przycisk "Wyczyść" w sekcji logów.
+
 
 ### 8. **Brak możliwości wyboru formatu wyjściowego**
-- Tylko format txt z timestampami
-- Brak opcji SRT, VTT, JSON
-- Brak opcji tekstu bez timestampów
-- **Rozwiązanie**: Dodać wybór formatu
+- [ROZWIĄZANE] Dodano listę rozwijaną z wyborem formatu (txt, srt, vtt).
+
 
 ### 9. **Brak możliwości usunięcia pliku wideo po transkrypcji**
-- Plik wideo pozostaje nawet jeśli nie jest potrzebny
-- **Rozwiązanie**: Dodać checkbox "Usuń wideo po transkrypcji"
+- [ROZWIĄZANE] Dodano opcję "Usuń plik źródłowy po zakończeniu".
+
 
 ### 10. **Brak możliwości minimalizacji do tray**
 - Okno zawsze widoczne
@@ -123,8 +115,8 @@ Aplikacja GUI w Tkinter do pobierania filmów z YouTube, transkrypcji audio do t
 - **Rozwiązanie**: Walidować na bieżąco podczas wpisywania
 
 ### 14. **Brak informacji o statusie Ollama**
-- Nie wiadomo czy Ollama działa przed rozpoczęciem
-- **Rozwiązanie**: Dodać wskaźnik statusu Ollama
+- [ROZWIĄZANE] Status Ollama jest sprawdzany przy starcie i wyświetlany w GUI.
+
 
 ### 15. **Brak możliwości wyboru jakości audio dla audio_only**
 - Twarde 192 kbps
