@@ -1,57 +1,31 @@
-import re
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-def smart_split_text(text: str, max_length: int = 6000, overlap: int = 500) -> list[str]:
+def smart_split_text(text: str, chunk_size: int = 6000, chunk_overlap: int = 500) -> list[str]:
     """
-    Dzieli tekst na fragmenty, szukając semantycznych przerw (akapity, zdania).
-    Bielik ma okno kontekstowe ~8k tokenów. Bezpieczny chunk to ok. 6000 znaków (zostawia miejsce na prompt i odpowiedź).
+    Dzieli tekst na fragmenty przy użyciu RecursiveCharacterTextSplitter, dbając o semantyczną spójność.
+
+    Ta metoda jest lepsza od prostego slice'owania, ponieważ:
+    1. Rekurencyjnie próbuje dzielić tekst według listy separatorów (np. akapity -> zdania -> słowa).
+    2. Gwarantuje, że chunk nie przekroczy `chunk_size` (chyba że pojedyncze słowo jest dłuższe).
+    3. Zachowuje `chunk_overlap`, co jest kluczowe dla LLM, aby nie tracić kontekstu na łączeniach.
+    4. Jest to standard branżowy (LangChain), bardziej przetestowany niż własne regexy.
+
+    Args:
+        text (str): Tekst wejściowy do podzielenia.
+        chunk_size (int): Maksymalna długość pojedynczego fragmentu (w znakach). Domyślnie 6000.
+        chunk_overlap (int): Liczba znaków nakładających się między fragmentami. Domyślnie 500.
+
+    Returns:
+        list[str]: Lista fragmentów tekstu.
     """
     if not text:
         return []
-    
-    if len(text) <= max_length:
-        return [text]
 
-    chunks = []
-    current_pos = 0
-    text_len = len(text)
-    
-    # Priorytety podziału: Podwójny enter > Enter > Koniec zdania > Przecinek/Spacja
-    separators = ["\n\n", "\n", ". ", "? ", "! ", "; ", ", ", " "]
-    
-    while current_pos < text_len:
-        target_end = min(current_pos + max_length, text_len)
-        
-        if target_end == text_len:
-            chunks.append(text[current_pos:])
-            break
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", ". ", " ", ""],
+        strip_whitespace=True
+    )
 
-        # Szukamy najlepszego punktu cięcia w ostatnich 15% chunka
-        best_split = -1
-        search_zone_start = max(current_pos, target_end - int(max_length * 0.15))
-        chunk_candidate = text[search_zone_start:target_end]
-        
-        for sep in separators:
-            last_sep_index = chunk_candidate.rfind(sep)
-            if last_sep_index != -1:
-                # Znaleziono separator - obliczamy absolutną pozycję
-                best_split = search_zone_start + last_sep_index + len(sep)
-                break
-        
-        # Fallback: Jeśli nie ma gdzie uciąć, tniemy na sztywno (bardzo rzadkie)
-        if best_split == -1:
-            best_split = target_end
-
-        # Dodaj chunk
-        chunks.append(text[current_pos:best_split])
-        
-        # Przesuń wskaźnik o overlap (dla zachowania kontekstu między fragmentami)
-        # Ale nie cofaj się, jeśli best_split jest za blisko current_pos
-        next_pos = max(current_pos + 1, best_split - overlap)
-        
-        # Zabezpieczenie przed pętlą nieskończoną (gdy overlap > długość chunka)
-        if next_pos >= best_split:
-            next_pos = best_split
-            
-        current_pos = next_pos
-
-    return chunks
+    return text_splitter.split_text(text)
