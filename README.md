@@ -63,14 +63,18 @@ pip install -r requirements.txt
 ```
 
 ### 4. Uruchomienie (GUI)
-Najwygodniej korzystać z interfejsu Streamlit:
-```bash
-./run_streamlit.sh
-```
+Najwygodniej korzystać z nowoczesnego interfejsu Streamlit:
+
+*   **Windows**: Kliknij dwukrotnie w `start_windows.bat`.
+*   **Linux/macOS**: Uruchom `./run_streamlit.sh`.
+
 Interfejs oferuje trzy główne moduły:
-- **YouTube**: Pobieranie z opcją automatycznego wykorzystania istniejących napisów (najszybsza metoda).
-- **Pliki Lokalne**: Przetwarzanie plików wideo/audio z dysku.
-- **Generowanie Treści**: Pozwala na ponowne przetworzenie istniejących transkrypcji i wygenerowanie opracowania na wybrany temat (nie tylko OSINT!).
+- **📺 YouTube**: Pobieranie z opcją automatycznego wykorzystania istniejących napisów (najszybsza metoda).
+- **📂 Pliki Lokalne**: Przetwarzanie plików wideo/audio z dysku.
+- **📝 Generowanie Treści**: Pozwala na ponowne przetworzenie istniejących transkrypcji i wygenerowanie opracowania na wybrany temat.
+
+> [!NOTE]
+> Oryginalny interfejs Tkinter został przeniesiony do `src/gui/legacy/` i można go uruchomić za pomocą `run_legacy_gui.bat` (niepolecane).
 
 ### 5. Uruchomienie (CLI)
 1.  Wrzuć plik transkrypcji do `data/raw/` (lub użyj istniejącego w `data/output/`).
