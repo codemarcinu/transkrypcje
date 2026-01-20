@@ -1,21 +1,23 @@
 @echo off
+:: run_app.bat - Główny skrypt startowy dla Windows
+:: Cel: Automatyczna aktywacja venv i start Streamlit bez pytania o zgody.
+
 cd /d "%~dp0"
 
-set "VENV_DIR=venv"
-set "APP_PATH=src\gui\streamlit_app.py"
-
-if exist "%VENV_DIR%\Scripts\activate.bat" (
-    echo 🐍 Aktywacja środowiska virtualnego...
-    call "%VENV_DIR%\Scripts\activate.bat"
-) else (
-    echo ⚠️ OSTRZEZENIE: Nie znaleziono venv. Próba uruchomienia systemowego Streamlit...
-)
-
-set PYTHONPATH=%PYTHONPATH%;.
-echo 🚀 Uruchamianie interfejsu Streamlit...
-streamlit run "%APP_PATH%"
-
-if %ERRORLEVEL% neq 0 (
-    echo ❌ Wystapil blad podczas uruchamiania aplikacji.
+:: 1. Sprawdzenie i aktywacja środowiska wirtualnego
+IF EXIST "venv\Scripts\activate.bat" (
+    call venv\Scripts\activate.bat
+) ELSE (
+    echo [BLAD] Nie znaleziono folderu venv.
+    echo Upewnij sie, ze zainstalowales projekt (uruchom install.bat lub pip install -r requirements.txt)
     pause
+    exit /b
 )
+
+:: 2. Uruchomienie interfejsu Streamlit
+echo [INFO] Uruchamianie interfejsu Streamlit...
+echo [INFO] Aplikacja otworzy sie w Twojej przegladarce.
+streamlit run src/gui/streamlit_app.py
+
+:: 3. Pauza w razie błędu (żeby okno nie zniknęło natychmiast)
+if %errorlevel% neq 0 pause

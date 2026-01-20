@@ -17,6 +17,16 @@ class Downloader:
         
         self.logger.log("Analizowanie URL...")
         
+        # 0. Check for FFmpeg availability
+        from src.utils.helpers import check_ffmpeg
+        ffmpeg_ok, _ = check_ffmpeg()
+        if not ffmpeg_ok and quality != "worst":
+            self.logger.log("⚠️ OSTRZEŻENIE: FFmpeg nie jest zainstalowany!")
+            self.logger.log("Pobieranie w wysokiej jakości (best) wymaga FFmpeg do scalania plików.")
+            self.logger.log("Próba pobrania może zakończyć się pustym plikiem.")
+            if quality == "audio_only":
+                 raise Exception("Błąd: Konwersja do audio_only wymaga FFmpeg.")
+        
         # 1. Konfiguracja wstępna (tylko do pobrania info)
         common_opts = {
             "outtmpl": os.path.join(save_path, "%(title)s.%(ext)s"),

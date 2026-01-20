@@ -20,3 +20,6 @@ class Logger:
 
     def set_callback(self, callback):
         self.log_callback = callback
+
+def setup_logger():
+    return Logger()

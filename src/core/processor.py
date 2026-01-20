@@ -1,3 +1,4 @@
+import os
 from src.core.downloader import Downloader
 from src.core.transcriber import Transcriber
 from src.core.summarizer import Summarizer
@@ -6,7 +7,7 @@ from src.utils.helpers import validate_url, validate_path, check_disk_space, che
 from src.utils.config import DEFAULT_OLLAMA_MODEL
 from src.utils.subtitle_converter import convert_subtitle_to_txt
 
-class Processor:
+class ContentProcessor:
     def __init__(self, logger, stop_event, progress_callback):
         self.logger = logger
         self.stop_event = stop_event
@@ -55,23 +56,24 @@ class Processor:
     def summarize_from_file(self, file_path, model_name=None, max_chars=10000, style="Zwięzłe (3 punkty)"):
         return self.summarizer.summarize_from_file(file_path, model_name, max_chars, style)
 
-    def run_content_generation(self, input_file, output_file, topic="Narzędzia OSINT, Krypto i Techniki Śledcze"):
+    def run_content_generation(self, input_file, topic, model_name="bielik"):
         # Używamy nowego pipeline'u (Instructor + Qwen/Bielik)
         from main_pipeline import run_pipeline
-        # output_file is full path, but run_pipeline expects dir. 
-        # However, run_pipeline generates its own filename "Podrecznik_...".
-        # We should probably respect output_file path or just pass the dir.
-        # For compatibility with GUI which expects specific file but run_pipeline decides name...
-        # Let's pass the directory of output_file
-        output_dir = os.path.dirname(output_file)
         
-        # Przekierowanie stdout/stderr do loggera GUI to wyższa szkoła jazdy, 
-        # ale run_pipeline drukuje na konsolę. 
-        # W GUI zobaczymy to w terminalu, a w logach GUI tylko "Rozpoczynam...".
-        self.logger.log(f"Uruchamianie generatora treści dla {input_file} (Temat: {topic})...")
+        # main_pipeline.run_pipeline expects input_path, output_dir, topic
+        # We'll use DATA_OUTPUT from config as default output_dir
+        from src.utils.config import DATA_OUTPUT
+        
+        self.logger.log(f"Uruchamianie generatora treści dla {input_file} (Temat: {topic}, Model: {model_name})...")
         try:
-            run_pipeline(input_file, output_dir, topic=topic)
+            run_pipeline(input_path=input_file, output_dir=DATA_OUTPUT, topic=topic)
             self.logger.log("Pipeline zakończony.")
+            
+            # Predict output path as main_pipeline does:
+            # os.path.join(output_dir, f"Podrecznik_{filename.replace('.txt', '.md')}")
+            filename = os.path.basename(input_file)
+            result_path = os.path.join(DATA_OUTPUT, f"Podrecznik_{filename.replace('.txt', '.md')}")
+            return result_path
         except Exception as e:
             self.logger.log(f"Błąd pipeline'u: {e}")
             raise e

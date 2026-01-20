@@ -1,9 +1,12 @@
+yt-dlp
+faster-whisper
+torch
+requests
+streamlit
+watchdog
 ollama>=0.1.6
 pydantic>=2.0.0
 tqdm
 colorama
 langchain-text-splitters
 instructor
-requests
-streamlit
-watchdog

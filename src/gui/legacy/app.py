@@ -7,7 +7,7 @@ import platform
 import subprocess
 import logging
 
-from src.core.processor import Processor
+from src.core.processor import ContentProcessor as Processor
 from src.utils.logger import Logger
 from src.utils.config import WHISPER_LANGUAGES, WHISPER_MODELS, DEFAULT_MODEL_SIZE
 from src.utils.helpers import check_ffmpeg

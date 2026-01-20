@@ -62,16 +62,18 @@ ollama create bielik-writer -f Modelfile
 pip install -r requirements.txt
 ```
 
-### 4. Uruchomienie (GUI)
-Najwygodniej korzystać z nowoczesnego interfejsu Streamlit:
+### 4. Uruchomienie (Windows)
 
-*   **Windows**: Kliknij dwukrotnie w `run_app.bat`.
-*   **Linux/macOS**: Uruchom `./run_streamlit.sh`.
+Po prostu kliknij dwukrotnie plik:
+`run_app.bat`
 
-Interfejs oferuje główne moduły:
-- **📺 YouTube**: Pobieranie z opcją automatycznego wykorzystania istniejących napisów (najszybsza metoda).
-- **📂 Pliki Lokalne**: Przetwarzanie plików wideo/audio z dysku.
-- **📝 Generowanie Treści**: Pozwala na ponowne przetworzenie istniejących transkrypcji i wygenerowanie opracowania na wybrany temat z podglądem na żywo.
+> *Skrypt automatycznie aktywuje środowisko i otworzy panel w przeglądarce.*
+
+### 5. Korzystanie
+- Wybierz plik transkrypcji z listy po lewej.
+- Temat wypełni się automatycznie – możesz go zmienić.
+- Kliknij **"Generuj Notatki"**.
+- Wynik zobaczysz od razu pod przyciskiem.
 
 > [!TIP]
 > Wszystkie techniczne opcje (wybór modelu, języka, folderów) zostały ukryte w zakładce **"⚙️ Ustawienia Zaawansowane"** w bocznym panelu, aby interfejs pozostawał przejrzysty.
@@ -79,7 +81,7 @@ Interfejs oferuje główne moduły:
 > [!NOTE]
 > Oryginalny interfejs Tkinter został przeniesiony do `src/gui/legacy/` i można go uruchomić za pomocą `run_legacy_gui.bat` (niepolecane).
 
-### 5. Uruchomienie (CLI)
+### 6. Uruchomienie (CLI)
 1.  Wrzuć plik transkrypcji do `data/raw/` (lub użyj istniejącego w `data/output/`).
 2.  Uruchom pipeline:
 ```bash
