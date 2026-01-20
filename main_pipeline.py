@@ -9,13 +9,22 @@ from src.agents.writer import generate_chapter
 from src.core.llm_engine import unload_model
 from src.utils.validator import verify_url
 
-def run_pipeline(filename: str):
-    input_path = os.path.join(DATA_RAW, filename)
+def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "Narzędzia OSINT, Krypto i Techniki Śledcze"):
+    """
+    Uruchamia pipeline generowania podręcznika.
+    
+    Args:
+        input_path (str): Absolutna ścieżka do pliku wejściowego (transkrypcji).
+        output_dir (str): Katalog zapisu wyników.
+        topic (str): Temat rozdziału/podręcznika.
+    """
     if not os.path.exists(input_path):
         print(f"Błąd: Nie znaleziono pliku {input_path}")
         return
 
+    filename = os.path.basename(input_path)
     print(f"🚀 Rozpoczynam przetwarzanie: {filename}")
+    print(f"📚 Temat: {topic}")
 
     # 1. Wczytywanie i czyszczenie
     with open(input_path, 'r', encoding='utf-8') as f:
@@ -70,15 +79,16 @@ def run_pipeline(filename: str):
     # 3. Redukcja (Pisanie Bielikiem)
     print(f"\n✍️ Pisanie podręcznika (Model: {MODEL_WRITER})...")
     
-    final_content = "# Podręcznik Szkoleniowy (Wygenerowany przez AI)\n\n"
+    final_content = f"# Podręcznik: {topic}\n\n"
     
-    # Generujemy rozdział "Narzędzia i Techniki"
+    # Generujemy rozdział
     # Note: generate_chapter expects list of dicts, which matches knowledge_base structure now
-    chapter_tools = generate_chapter("Narzędzia OSINT, Krypto i Techniki Śledcze", knowledge_base)
+    chapter_tools = generate_chapter(topic, knowledge_base)
     final_content += chapter_tools
     
     # Zapis
-    output_path = os.path.join(DATA_OUTPUT, f"Podrecznik_{filename.replace('.txt', '.md')}")
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, f"Podrecznik_{filename.replace('.txt', '.md')}")
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(final_content)
         
@@ -89,7 +99,7 @@ if __name__ == "__main__":
     # Domyślnie szukamy pierwszego pliku .txt w folderze raw jeśli nie podano
     files = [f for f in os.listdir(DATA_RAW) if f.endswith('.txt')]
     if files:
-        TARGET_FILE = files[0]
+        TARGET_FILE = os.path.join(DATA_RAW, files[0])
         run_pipeline(TARGET_FILE)
     else:
         print("Brak plików .txt w data/raw")
