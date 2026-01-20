@@ -30,6 +30,7 @@ class Processor:
         return self.summarizer.check_ollama_status()
     
     def download_video(self, url, save_path, quality, audio_quality="192"):
+        """Pobiera wideo (lub listę wideo) z YouTube. Zwraca listę ścieżek do plików."""
         return self.downloader.download_video(url, save_path, quality, audio_quality)
 
     def convert_to_mp3(self, input_path, output_path=None):

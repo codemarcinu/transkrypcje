@@ -11,82 +11,114 @@ class Downloader:
         self.progress_callback = progress_callback
 
     def download_video(self, url, save_path, quality, audio_quality="192"):
-        """Pobiera wideo z YouTube"""
+        """Pobiera wideo z YouTube (obsługuje playlisty)"""
         if self.stop_event.is_set():
             raise InterruptedError("Operacja anulowana przez użytkownika")
         
-        self.logger.log(f"Pobieranie wideo ({quality})...")
-        self.progress_callback(0, "downloading")
-
+        self.logger.log("Analizowanie URL...")
+        
+        # 1. Konfiguracja wstępna (tylko do pobrania info)
         common_opts = {
             "outtmpl": os.path.join(save_path, "%(title)s.%(ext)s"),
             "progress_hooks": [self.yt_dlp_hook],
             "writethumbnail": False,
             "writeinfojson": False,
             "keepvideo": False,
-            "noplaylist": True,
+            "noplaylist": True, # Najpierw sprawdzamy, potem decydujemy
             "socket_timeout": 30,
+            "quiet": True,
+            "no_warnings": True
         }
 
+        # 2. Sprawdzenie czy to playlista
+        try:
+            with yt_dlp.YoutubeDL({'extract_flat': True, 'quiet': True}) as ydl:
+                info = ydl.extract_info(url, download=False)
+                
+            entries = []
+            if 'entries' in info:
+                self.logger.log(f"Wykryto playlistę: {info.get('title', 'Nieznana')}")
+                entries = list(info['entries']) # Flat entries
+            else:
+                entries = [info]
+
+        except Exception as e:
+            raise Exception(f"Błąd analizy URL: {str(e)}")
+
+        # 3. Przygotowanie opcji pobierania właściwego
+        # Musimy stworzyć opcje zależne od jakości
+        final_opts = common_opts.copy()
+        final_opts["noplaylist"] = True # Pobieramy pojedynczo w pętli
+        final_opts["quiet"] = False
+        final_opts["no_warnings"] = False
+
         if quality == "best":
-            ydl_opts = {
-                **common_opts,
+            final_opts.update({
                 "format": "bestvideo+bestaudio/best",
                 "merge_output_format": "mp4",
                 "postprocessors": [{"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}],
-            }
+            })
         elif quality == "worst":
-            ydl_opts = {
-                **common_opts,
+            final_opts.update({
                 "format": "worst",
                 "merge_output_format": "mp4",
                 "postprocessors": [{"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}],
-            }
+            })
         elif quality == "audio_only":
-            ydl_opts = {
-                **common_opts,
+            final_opts.update({
                 "format": "bestaudio/best",
                 "postprocessors": [{
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
                     "preferredquality": audio_quality,
                 }],
-            }
-        else:
-             # Default fallback
-             ydl_opts = common_opts
+            })
 
-        filename = ""
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-                
-                base = os.path.splitext(filename)[0]
-                if quality == "audio_only":
-                    filename = base + ".mp3"
-                else:
-                    filename = base + ".mp4"
-                
-                if os.path.exists(filename):
-                    size_str = get_file_size(filename)
-                    self.logger.log(f"Rozmiar pliku: {size_str}")
+        downloaded_files = []
+        total_items = len(entries)
 
-        except yt_dlp.utils.DownloadError as e:
-            raise Exception(f"Błąd pobierania: {str(e)}")
-        except Exception as e:
-            raise Exception(f"Nieoczekiwany błąd podczas pobierania: {str(e)}")
+        for i, entry in enumerate(entries, 1):
+            if self.stop_event.is_set():
+                break
+            
+            video_url = entry.get('url') or entry.get('webpage_url')
+            if not video_url:
+                # Fallback for some extractors
+                video_url = url 
+            
+            title = entry.get('title', f"Wideo {i}")
+            self.logger.log(f"Pobieranie [{i}/{total_items}]: {title} ({quality})...")
+            self.progress_callback(0, "downloading")
+
+            try:
+                with yt_dlp.YoutubeDL(final_opts) as ydl:
+                    # Pobieranie pojedynczego elementu
+                    item_info = ydl.extract_info(video_url, download=True)
+                    filename = ydl.prepare_filename(item_info)
+                    
+                    # Korekta rozszerzenia (podobnie jak w oryginale)
+                    base = os.path.splitext(filename)[0]
+                    if quality == "audio_only":
+                        filename = base + ".mp3"
+                    else:
+                        filename = base + ".mp4"
+                    
+                    if os.path.exists(filename):
+                        size_str = get_file_size(filename)
+                        self.logger.log(f"Pobrano: {os.path.basename(filename)} ({size_str})")
+                        downloaded_files.append(filename)
+
+            except Exception as e:
+                self.logger.log(f"Błąd pobierania elementu {i}: {e}")
+                continue
+
+            self.progress_callback(100, "downloading")
 
         if self.stop_event.is_set():
-            if os.path.exists(filename):
-                try:
-                    os.remove(filename)
-                except:
-                    pass
+            # Opcjonalne czyszczenie? Na razie zostawiamy pobrane pliki.
             raise InterruptedError("Operacja anulowana przez użytkownika")
 
-        self.progress_callback(100, "downloading")
-        return filename
+        return downloaded_files
 
     def yt_dlp_hook(self, d):
         """Hook dla postępu pobierania"""
