@@ -1,80 +1,80 @@
-# Marcin's YT & Local Media Transcriber v3.2
+# System Generowania Podręczników AI (Map-Reduce)
 
-Aplikacja desktopowa do pobierania wideo z YouTube (w tym playlist), transkrypcji audio (Whisper) oraz generowania podsumowań (Ollama).
+Projekt przekształca surowe transkrypcje wideo w profesjonalne, ustrukturyzowane rozdziały podręczników IT, wykorzystując architekturę **Map-Reduce** i lokalne modele LLM.
 
-## 🚀 Funkcje
+## 🏗️ Architektura
 
-- **Pobieranie wideo/audio**: Obsługa pojedynczych linków YouTube oraz playlist.
-- **Transkrypcja AI**: Wykorzystuje model `faster-whisper` (możliwość wyboru modelu i języka).
-- **Podsumowania AI**: Integracja z `Ollama` do generowania podsumowań tekstu.
-- **Przetwarzanie lokalne**: Możliwość wskazania plików audio/wideo z dysku.
-- **Konwersja**: Automatyczna konwersja do MP3 (FFmpeg).
-- **Logowanie**: Podgląd logów w czasie rzeczywistym.
+System działa w trzech fazach:
 
-## 🛠️ Wymagania
+1.  **Ekstrakcja (Map)**
+    - **Agent**: `Extractor` (oparty na **Qwen 2.5 14B**)
+    - **Zadanie**: Analizuje tekst fragment po fragmencie, wyciągając twarde dane: narzędzia, pojęcia, porady.
+    - **Wynik**: Baza wiedzy w formacie JSON (`data/processed/`).
 
-- **System**: Linux / Windows / macOS
-- **Python**: 3.8+
-- **FFmpeg**: Zainstalowany i dostępny w PATH.
-- **Ollama**: Uruchomiony serwer Ollama.
-- **Model AI**: Zalecany `SpeakLeash/bielik-11b-v3.0-instruct:Q5_K_M` dla analizy OSINT.
+2.  **Redukcja (Reduce)**
+    - **Agent**: `Writer` (oparty na **Bielik 11B v3**)
+    - **Zadanie**: Agreguje zebraną wiedzę i pisze spójny rozdział w Markdown.
+    - **Cechy**: Styl techniczny, inżynierski konkret, brak lania wody.
 
-## 📦 Instalacja
+3.  **Optymalizacja Modelu**
+    - Wykorzystujemy customowy model `bielik-writer` z parametrami `repeat_penalty=1.15` (zapobieganie pętlom) i wymuszonym formatem ChatML.
 
-1.  **Klonowanie repozytorium** (lub wypakowanie kodu).
-2.  **Stworzenie środowiska wirtualnego** (zalecane):
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate  # Linux/macOS
-    # venv\Scripts\activate   # Windows
-    ```
-3.  **Instalacja zależności**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-4.  **Instalacja Tkinter** (jeśli wymagane, np. na Linux):
-    ```bash
-    sudo apt-get install python3-tk
-    ```
+## 📂 Struktura Katalogów
 
-## ▶️ Uruchomienie
-
-### Linux / macOS
-```bash
-./run.sh
-```
-Lub ręcznie:
-```bash
-source venv/bin/activate
-python3 main.py
-```
-
-### Windows
-Uruchom `run_app.bat`.
-
-## 📂 Struktura Projektu
-
-Projekt został zrefaktoryzowany do architektury modułowej:
-
-```
-.
+```text
+transkrypcje/
+├── data/
+│   ├── raw/                 # Tu wrzucasz pliki .txt (np. "Narzędziownik...")
+│   ├── processed/           # Tu lądują JSON-y z wiedzą (backup co 5 chunków)
+│   └── output/              # Gotowe rozdziały .md
 ├── src/
-│   ├── core/               # Logika biznesowa
-│   │   ├── downloader.py   # Obsługa yt-dlp i ffmpeg
-│   │   ├── transcriber.py  # Obsługa faster-whisper
-│   │   ├── summarizer.py   # Obsługa Ollama
-│   │   └── processor.py    # Fasada (Processor)
-│   ├── gui/                # Interfejs użytkownika
-│   │   └── app.py          # Główna klasa aplikacji (Tkinter)
-│   └── utils/              # Narzędzia
-│       ├── config.py       # Konfiguracja i stałe
-│       ├── helpers.py      # Funkcje pomocnicze
-│       └── logger.py       # System logowania
-├── main.py                 # Punkt wejściowy aplikacji
-├── run.sh                  # Skrypt startowy (Linux)
-├── run_app.bat             # Skrypt startowy (Windows)
-└── requirements.txt        # Zależności
+│   ├── agents/              # Logika agentów (Extractor: Qwen, Writer: Bielik)
+│   ├── core/                # Silnik LLM (Ollama wrapper) i czyszczenie tekstu
+│   └── utils/               # Konfiguracja (ścieżki, nazwy modeli)
+├── main_pipeline.py         # Skrypt uruchomieniowy
+├── Modelfile                # Definicja optymalizacji modelu Bielik
+└── requirements.txt         # Zależności Python
 ```
 
-## 📝 Licencja
-Projekt prywatny.
+## 🚀 Instalacja i Uruchomienie
+
+### 1. Wymagania
+*   **Ollama** zainstalowana i działająca.
+*   **Python 3.10+**.
+*   **GPU**: Zalecane min. 12GB VRAM (modele ładowane są sekwencyjnie).
+
+### 2. Przygotowanie Modeli
+Pobierz Qwena i zbuduj zoptymalizowanego Bielika:
+
+```bash
+ollama pull qwen2.5:14b
+ollama create bielik-writer -f Modelfile
+```
+
+### 3. Instalacja Zależności
+```bash
+# Wewnątrz venv
+pip install -r requirements.txt
+```
+
+### 4. Uruchomienie
+1.  Wrzuć plik transkrypcji do `data/raw/`.
+2.  Edytuj `main_pipeline.py`, ustawiając zmienną `TARGET_FILE` na nazwę swojego pliku.
+3.  Uruchom pipeline:
+
+```bash
+python main_pipeline.py
+```
+
+## 💡 Customizacja
+
+*   **Zmiana Modeli**: Edytuj `src/utils/config.py`.
+*   **Zmiana Prompta**:
+    *   Prompt ekstrakcji (Qwen): `src/agents/extractor.py`
+    *   Prompt pisania (Bielik): `src/agents/writer.py`
+    *   System Prompt Bielika: `Modelfile` (wymaga przebudowania modelu `ollama create ...`).
+
+## ⚠️ Rozwiązywanie problemów
+
+*   **Pętle w tekście ("i tak dalej")**: Upewnij się, że używasz modelu `bielik-writer`, który ma ustawione `repetition_penalty`.
+*   **Błędy JSON**: Logika w `llm_engine.py` automatycznie czyści Markdown, ale w razie problemów sprawdź surowe odpowiedzi w logach.
