@@ -4,10 +4,10 @@ from tqdm import tqdm
 from src.utils.config import DATA_RAW, DATA_PROCESSED, DATA_OUTPUT, CHUNK_SIZE, OVERLAP, MODEL_EXTRACTOR, MODEL_WRITER
 from src.core.text_cleaner import clean_transcript
 from src.utils.text_processing import smart_split_text
-from src.agents.extractor import extract_knowledge
-from src.agents.writer import generate_chapter
+from src.agents.extractor import KnowledgeExtractor
+from src.agents.writer import ReportWriter
 from src.core.llm_engine import unload_model
-from src.utils.validator import verify_url  # Upewnij się, że ten plik istnieje
+from src.utils.validator import verify_url
 
 def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "Narzędzia OSINT, Krypto i Techniki Śledcze"):
     if not os.path.exists(input_path):
@@ -37,13 +37,14 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
     
     print(f"\n🕵️ Ekstrakcja wiedzy (Model: {MODEL_EXTRACTOR})...")
     
+    extractor = KnowledgeExtractor()
     total_chunks = len(chunks)
     for i, chunk in enumerate(tqdm(chunks)):
         # Oznaczanie fragmentu (Part X (Y%))
         progress_pct = int(((i + 1) / total_chunks) * 100)
         time_tag = f"Part {i+1} ({progress_pct}%)"
         
-        graph = extract_knowledge(chunk, time_range=time_tag)
+        graph = extractor.extract_knowledge(chunk, chunk_id=time_tag)
         
         # Wykrywanie cichego błędu
         is_empty_graph = not any([graph.topics, graph.tools, graph.key_concepts, graph.tips])
@@ -92,7 +93,8 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
         return
 
     print(f"\n✍️ Pisanie podręcznika (Model: {MODEL_WRITER})...")
-    chapter_content = generate_chapter(topic, knowledge_base)
+    writer = ReportWriter()
+    chapter_content = writer.generate_chapter(topic, knowledge_base)
     
     final_content = f"# Podręcznik: {topic}\n\n{chapter_content}"
     
