@@ -62,11 +62,12 @@ class LLMEngine:
         from openai import OpenAI
         
         self.model = MODEL_EXTRACTOR if model_type == "extractor" else MODEL_WRITER
+        self.raw_client = OpenAI(
+            base_url=f"{OLLAMA_URL}/v1",
+            api_key="ollama",
+        )
         self.client = instructor.from_openai(
-            OpenAI(
-                base_url=f"{OLLAMA_URL}/v1",
-                api_key="ollama",
-            ),
+            self.raw_client,
             mode=instructor.Mode.JSON,
         )
 
@@ -83,7 +84,7 @@ class LLMEngine:
         )
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
-        response = self.client.chat.completions.create(
+        response = self.raw_client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
