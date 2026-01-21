@@ -54,11 +54,8 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
                 failed_chunks += 1
                 print(f"\n⚠️ [OSTRZEŻENIE] Fragment {time_tag} zwrócił puste dane.")
         
-        # Walidacja URLi i zbieranie statystyk
         for tool in graph.tools:
             stats["tools"] += 1
-            if tool.url and not verify_url(tool.url):
-                tool.url = None
         
         stats["concepts"] += len(graph.key_concepts)
         stats["topics"] += len(graph.topics)
