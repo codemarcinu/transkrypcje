@@ -1,4 +1,5 @@
 import os
+import json
 import torch
 from faster_whisper import WhisperModel
 from src.utils.config import DEVICE, COMPUTE_TYPE
@@ -57,27 +58,35 @@ class Transcriber:
         return segments, info
 
     def save_transcription(self, segments, info, filename, output_format, language):
-        """Zapisuje transkrypcję iterując po generatorze. Zwraca ścieżkę do pliku."""
+        """Zapisuje transkrypcję - ZAWSZE najpierw do JSON, potem konwertuje do wybranego formatu.
+
+        Returns:
+            tuple: (output_file, json_file) - ścieżki do pliku wyjściowego i bazowego JSON
+        """
         base_name = os.path.splitext(filename)[0]
-        output_file = ""
-        
-        # Note: We can only consume the generator ONCE.
-        
-        if output_format == "txt":
+        json_file = base_name + "_transkrypcja.json"
+
+        # 1. ZAWSZE zapisz do JSON (konsumuje generator, zwraca listę segmentów)
+        segments_list = self._save_json(segments, info, json_file, language)
+
+        # 2. Konwertuj do wybranego formatu (używa listy, nie generatora)
+        if output_format == "json":
+            output_file = json_file
+        elif output_format == "txt":
             output_file = base_name + "_transkrypcja.txt"
-            self._save_txt(segments, info, output_file, language)
+            self._convert_to_txt(segments_list, info, output_file, language)
         elif output_format == "srt":
             output_file = base_name + "_transkrypcja.srt"
-            self._save_srt(segments, output_file)
+            self._convert_to_srt(segments_list, output_file)
         elif output_format == "vtt":
             output_file = base_name + "_transkrypcja.vtt"
-            self._save_vtt(segments, output_file)
+            self._convert_to_vtt(segments_list, output_file)
         elif output_format == "txt_no_timestamps":
             output_file = base_name + "_transkrypcja.txt"
-            self._save_txt_no_timestamps(segments, info, output_file, language)
+            self._convert_to_txt_no_timestamps(segments_list, info, output_file, language)
         else:
             output_file = base_name + "_transkrypcja.txt"
-            self._save_txt(segments, info, output_file, language)
+            self._convert_to_txt(segments_list, info, output_file, language)
 
         # Cleanup memory after consumption
         self.current_model = None
@@ -86,70 +95,143 @@ class Transcriber:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        return output_file
+        return output_file, json_file
 
-    def _save_txt(self, segments, info, filename, language):
+    def _save_json(self, segments, info, filename, language):
+        """Konsumuje generator Whispera i zapisuje do JSON. Zwraca listę segmentów."""
+        segments_list = []
+
+        detected_lang = getattr(info, 'language', language or 'nieznany')
+        lang_prob = getattr(info, 'language_probability', 0.0)
+        duration = getattr(info, 'duration', 0.0)
+
         with open(filename, "w", encoding="utf-8") as f:
-            detected_lang = getattr(info, 'language', language or 'nieznany')
-            lang_prob = getattr(info, 'language_probability', 0.0)
-            f.write(f"Język wykryty: {detected_lang} (pewność: {lang_prob:.2%})\n")
-            f.write("-" * 40 + "\n\n")
+            # Zapisujemy nagłówek JSON i otwieramy tablicę segmentów
+            header = {
+                "language": detected_lang,
+                "language_probability": lang_prob,
+                "duration": duration,
+                "segments": []
+            }
 
             for segment in segments:
                 if self.stop_event.is_set():
                     raise InterruptedError("Anulowano")
-                
-                line = f"[{format_time(segment.start)} -> {format_time(segment.end)}] {segment.text}\n"
+
+                seg_data = {
+                    "start": segment.start,
+                    "end": segment.end,
+                    "text": segment.text.strip()
+                }
+                segments_list.append(seg_data)
+                header["segments"].append(seg_data)
+
+                if duration > 0:
+                    percent = (segment.end / duration) * 100
+                    self.progress_callback(percent, "transcribing")
+
+            json.dump(header, f, ensure_ascii=False, indent=2)
+
+        self.logger.log(f"Zapisano bazowy JSON: {filename}")
+        return segments_list
+
+    def _convert_to_txt(self, segments_list, info, filename, language):
+        """Konwertuje listę segmentów do formatu TXT z timestamps."""
+        detected_lang = getattr(info, 'language', language or 'nieznany')
+        lang_prob = getattr(info, 'language_probability', 0.0)
+
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(f"Język wykryty: {detected_lang} (pewność: {lang_prob:.2%})\n")
+            f.write("-" * 40 + "\n\n")
+
+            for seg in segments_list:
+                line = f"[{format_time(seg['start'])} -> {format_time(seg['end'])}] {seg['text']}\n"
                 f.write(line)
-                f.flush() # CRITICAL: Write immediately to disk
-                
-                if hasattr(info, 'duration') and info.duration > 0:
-                    percent = (segment.end / info.duration) * 100
-                    self.progress_callback(percent, "transcribing")
 
-    def _save_txt_no_timestamps(self, segments, info, filename, language):
+    def _convert_to_txt_no_timestamps(self, segments_list, info, filename, language):
+        """Konwertuje listę segmentów do formatu TXT bez timestamps."""
+        detected_lang = getattr(info, 'language', language or 'nieznany')
+        lang_prob = getattr(info, 'language_probability', 0.0)
+
         with open(filename, "w", encoding="utf-8") as f:
-            detected_lang = getattr(info, 'language', language or 'nieznany')
-            lang_prob = getattr(info, 'language_probability', 0.0)
             f.write(f"Język wykryty: {detected_lang} (pewność: {lang_prob:.2%})\n")
             f.write("-" * 40 + "\n\n")
 
-            for segment in segments:
-                if self.stop_event.is_set():
-                    raise InterruptedError("Anulowano")
-                
-                f.write(segment.text + " ")
-                f.flush()
-                
-                if hasattr(info, 'duration') and info.duration > 0:
-                    percent = (segment.end / info.duration) * 100
-                    self.progress_callback(percent, "transcribing")
+            for seg in segments_list:
+                f.write(seg['text'] + " ")
 
-    def _save_srt(self, segments, filename):
+    def _convert_to_srt(self, segments_list, filename):
+        """Konwertuje listę segmentów do formatu SRT."""
         with open(filename, "w", encoding="utf-8") as f:
-            for i, segment in enumerate(segments, 1):
-                if self.stop_event.is_set():
-                    raise InterruptedError("Anulowano")
-                
-                start = format_srt_time(segment.start)
-                end = format_srt_time(segment.end)
-                f.write(f"{i}\n{start} --> {end}\n{segment.text}\n\n")
-                f.flush()
+            for i, seg in enumerate(segments_list, 1):
+                start = format_srt_time(seg['start'])
+                end = format_srt_time(seg['end'])
+                f.write(f"{i}\n{start} --> {end}\n{seg['text']}\n\n")
 
-
-    def _save_vtt(self, segments, filename):
-        full_text = ""
+    def _convert_to_vtt(self, segments_list, filename):
+        """Konwertuje listę segmentów do formatu VTT."""
         with open(filename, "w", encoding="utf-8") as f:
             f.write("WEBVTT\n\n")
-            for segment in segments:
-                if self.stop_event.is_set():
-                    raise InterruptedError("Anulowano")
-                
-                start = format_vtt_time(segment.start)
-                end = format_vtt_time(segment.end)
-                f.write(f"{start} --> {end}\n{segment.text}\n\n")
-                f.flush()
-                
-                full_text += segment.text + " "
+            for seg in segments_list:
+                start = format_vtt_time(seg['start'])
+                end = format_vtt_time(seg['end'])
+                f.write(f"{start} --> {end}\n{seg['text']}\n\n")
 
-        return full_text.strip()
+    # === STATYCZNE METODY KONWERSJI Z PLIKU JSON ===
+
+    @staticmethod
+    def convert_json_to_txt(json_path, output_path=None, with_timestamps=True):
+        """Konwertuje plik JSON do TXT."""
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if output_path is None:
+            output_path = json_path.replace('.json', '.txt')
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(f"Język wykryty: {data['language']} (pewność: {data['language_probability']:.2%})\n")
+            f.write("-" * 40 + "\n\n")
+
+            for seg in data['segments']:
+                if with_timestamps:
+                    f.write(f"[{format_time(seg['start'])} -> {format_time(seg['end'])}] {seg['text']}\n")
+                else:
+                    f.write(seg['text'] + " ")
+
+        return output_path
+
+    @staticmethod
+    def convert_json_to_srt(json_path, output_path=None):
+        """Konwertuje plik JSON do SRT."""
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if output_path is None:
+            output_path = json_path.replace('.json', '.srt')
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            for i, seg in enumerate(data['segments'], 1):
+                start = format_srt_time(seg['start'])
+                end = format_srt_time(seg['end'])
+                f.write(f"{i}\n{start} --> {end}\n{seg['text']}\n\n")
+
+        return output_path
+
+    @staticmethod
+    def convert_json_to_vtt(json_path, output_path=None):
+        """Konwertuje plik JSON do VTT."""
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if output_path is None:
+            output_path = json_path.replace('.json', '.vtt')
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write("WEBVTT\n\n")
+            for seg in data['segments']:
+                start = format_vtt_time(seg['start'])
+                end = format_vtt_time(seg['end'])
+                f.write(f"{start} --> {end}\n{seg['text']}\n\n")
+
+        return output_path
+

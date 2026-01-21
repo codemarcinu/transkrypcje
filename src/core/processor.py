@@ -48,7 +48,23 @@ class ContentProcessor:
         return self.transcriber.transcribe_video(filename, language, model_size)
 
     def save_transcription(self, segments, info, filename, output_format, language):
+        """Zapisuje transkrypcję. Zwraca (output_file, json_file)."""
         return self.transcriber.save_transcription(segments, info, filename, output_format, language)
+
+    def convert_json_transcription(self, json_path, output_format):
+        """Konwertuje istniejący JSON transkrypcji do innego formatu."""
+        from src.core.transcriber import Transcriber
+
+        if output_format == "txt":
+            return Transcriber.convert_json_to_txt(json_path)
+        elif output_format == "txt_no_timestamps":
+            return Transcriber.convert_json_to_txt(json_path, with_timestamps=False)
+        elif output_format == "srt":
+            return Transcriber.convert_json_to_srt(json_path)
+        elif output_format == "vtt":
+            return Transcriber.convert_json_to_vtt(json_path)
+        else:
+            return json_path
 
     def summarize_text(self, text, model_name=None, max_chars=10000, style="Zwięzłe (3 punkty)"):
         return self.summarizer.summarize_text(text, model_name, max_chars, style)

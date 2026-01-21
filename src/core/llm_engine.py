@@ -93,3 +93,21 @@ class LLMEngine:
             temperature=0.7
         )
         return response.choices[0].message.content
+
+    def generate_stream(self, system_prompt: str, user_prompt: str):
+        """
+        Generator streamujący odpowiedź token po tokenie.
+        Użycie: for chunk in llm.generate_stream(...): print(chunk, end="")
+        """
+        response = self.raw_client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7,
+            stream=True
+        )
+        for chunk in response:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content

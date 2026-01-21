@@ -1,5 +1,6 @@
 import requests
 import os
+from src.utils.config import OLLAMA_URL
 
 class Summarizer:
     def __init__(self, logger, stop_event, progress_callback):
@@ -9,7 +10,7 @@ class Summarizer:
 
     def check_ollama_status(self):
         try:
-            response = requests.get("http://localhost:11434/api/tags", timeout=2)
+            response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
             if response.status_code == 200:
                 models = response.json().get("models", [])
                 if models:
@@ -21,7 +22,7 @@ class Summarizer:
 
     def get_ollama_models(self):
         try:
-            response = requests.get("http://localhost:11434/api/tags", timeout=2)
+            response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
             if response.status_code == 200:
                 models = [m["name"] for m in response.json().get("models", [])]
                 return models
@@ -57,7 +58,7 @@ class Summarizer:
             self.logger.log("Próba połączenia z Ollama...")
             self.progress_callback(0, "summarizing")
 
-            tags_response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            tags_response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
             if tags_response.status_code != 200:
                 self.logger.log("Ollama nie odpowiada poprawnie.")
                 return None
@@ -89,7 +90,7 @@ class Summarizer:
             prompt = f"{prompt_text} poniższego tekstu:\n\n{text_to_summarize}"
 
             response = requests.post(
-                "http://localhost:11434/api/generate",
+                f"{OLLAMA_URL}/api/generate",
                 json={"model": selected_model, "prompt": prompt, "stream": False},
                 timeout=300,
             )

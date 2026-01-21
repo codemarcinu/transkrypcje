@@ -8,7 +8,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 COMPUTE_TYPE = "float16" if DEVICE == "cuda" else "int8"
 
 # Konfiguracja Whisper
-WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3"]
+WHISPER_MODELS = ["medium", "large-v3"]
 DEFAULT_MODEL_SIZE = "medium"
 WHISPER_LANGUAGES = {
     "Polski": "pl",
