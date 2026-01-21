@@ -20,11 +20,27 @@ WHISPER_LANGUAGES = {
 }
 
 # Konfiguracja modeli LLM
-# Konfiguracja modeli
-MODEL_EXTRACTOR = "qwen2.5:14b"
-MODEL_WRITER = "bielik-writer"
-DEFAULT_OLLAMA_MODEL = MODEL_EXTRACTOR
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama") # "ollama" lub "openai"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# Modele Ollama
+MODEL_EXTRACTOR_OLLAMA = "qwen2.5:14b"
+MODEL_WRITER_OLLAMA = "bielik-writer"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+
+# Modele OpenAI
+MODEL_EXTRACTOR_OPENAI = "gpt-4o-mini"
+MODEL_WRITER_OPENAI = "gpt-4o-mini" # Można zmienić na gpt-4o dla lepszej jakości
+
+# Wybrany model (zależnie od providera)
+if LLM_PROVIDER == "openai":
+    MODEL_EXTRACTOR = MODEL_EXTRACTOR_OPENAI
+    MODEL_WRITER = MODEL_WRITER_OPENAI
+else:
+    MODEL_EXTRACTOR = MODEL_EXTRACTOR_OLLAMA
+    MODEL_WRITER = MODEL_WRITER_OLLAMA
+
+DEFAULT_OLLAMA_MODEL = MODEL_EXTRACTOR
 
 # Parametry przetwarzania
 CHUNK_SIZE = 5000  # Zmniejszono z 8000 dla lepszej stabilności VRAM (RTX 3060)

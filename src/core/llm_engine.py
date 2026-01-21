@@ -55,23 +55,42 @@ def unload_model(model_name: str):
         print(f"[WARNING] Nie udało się zwolnić modelu {model_name}: {e}")
 
 class LLMEngine:
-    """Klasa silnika LLM wspierająca ustrukturyzowane i zwykłe generowanie."""
-    def __init__(self, model_type: str):
-        from src.utils.config import MODEL_EXTRACTOR, MODEL_WRITER, OLLAMA_URL
+    """Klasa silnika LLM wspierająca ustrukturyzowane i zwykłe generowanie (Ollama & OpenAI)."""
+    def __init__(self, model_type: str, provider: str = None):
+        from src.utils.config import (
+            MODEL_EXTRACTOR, MODEL_WRITER, 
+            OLLAMA_URL, LLM_PROVIDER, OPENAI_API_KEY
+        )
         import instructor
         from openai import OpenAI
         
+        self.provider = provider or LLM_PROVIDER
         self.model = MODEL_EXTRACTOR if model_type == "extractor" else MODEL_WRITER
-        self.raw_client = OpenAI(
-            base_url=f"{OLLAMA_URL}/v1",
-            api_key="ollama",
-        )
-        self.client = instructor.from_openai(
-            self.raw_client,
-            mode=instructor.Mode.JSON,
-        )
+        
+        if self.provider == "openai":
+            self.raw_client = OpenAI(api_key=OPENAI_API_KEY)
+            self.client = instructor.from_openai(
+                self.raw_client,
+                mode=instructor.Mode.JSON
+            )
+        else:
+            # Domyślnie Ollama
+            self.raw_client = OpenAI(
+                base_url=f"{OLLAMA_URL}/v1",
+                api_key="ollama",
+            )
+            self.client = instructor.from_openai(
+                self.raw_client,
+                mode=instructor.Mode.JSON,
+            )
 
     def generate_structured(self, system_prompt: str, user_prompt: str, response_model: type) -> any:
+        # Parametry specyficzne dla providera
+        extra_args = {}
+        if self.provider == "ollama" or self.provider == "local":
+             # Naprawa: Ollama czasami potrzebuje wskazania kontekstu w extra_body
+             extra_args["extra_body"] = {"options": {"num_ctx": 8192}}
+
         return self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -80,7 +99,7 @@ class LLMEngine:
             ],
             response_model=response_model,
             temperature=0.1,
-            extra_body={"options": {"num_ctx": 8192}}
+            **extra_args
         )
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
@@ -109,5 +128,5 @@ class LLMEngine:
             stream=True
         )
         for chunk in response:
-            if chunk.choices[0].delta.content:
+            if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content

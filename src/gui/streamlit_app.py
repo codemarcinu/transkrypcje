@@ -19,12 +19,14 @@ from src.utils.prompts_config import PROMPT_TEMPLATES
 from src.utils.logger import setup_logger
 from src.utils.config import (
     WHISPER_LANGUAGES, WHISPER_MODELS, DEFAULT_MODEL_SIZE,
-    DATA_PROCESSED, DATA_OUTPUT, CHUNK_SIZE, OVERLAP, MODEL_EXTRACTOR
+    DATA_PROCESSED, DATA_OUTPUT, CHUNK_SIZE, OVERLAP, 
+    MODEL_EXTRACTOR, LLM_PROVIDER, OPENAI_API_KEY
 )
 from src.utils.helpers import check_ffmpeg
 from src.core.text_cleaner import clean_transcript
 from src.utils.text_processing import smart_split_text
 from src.core.llm_engine import unload_model
+from src.core.batch_manager import BatchManager
 
 logger = setup_logger()
 
@@ -216,8 +218,27 @@ def main():
         )
 
         st.divider()
+        
+        # 3. Dostawca LLM
+        st.subheader("🌐 Dostawca LLM")
+        llm_provider = st.radio(
+            "Silnik:",
+            options=["ollama", "openai"],
+            index=0 if LLM_PROVIDER == "ollama" else 1,
+            format_func=lambda x: "Lokalny (Ollama)" if x == "ollama" else "Chmura (OpenAI)",
+            help="Ollama jest darmowy i lokalny. OpenAI jest płatny, ale szybszy i dokładniejszy."
+        )
+        
+        if llm_provider == "openai" and not OPENAI_API_KEY:
+            st.warning("⚠️ Brak klucza API OpenAI!")
+            new_key = st.text_input("Wprowadź klucz API:", type="password")
+            if new_key:
+                os.environ["OPENAI_API_KEY"] = new_key
+                st.success("Klucz ustawiony tymczasowo!")
+        
+        st.divider()
 
-        # 2. Główne zadania - najważniejsze opcje NA WIERZCHU
+        # 4. Główne zadania
         st.subheader("🛠️ Co zrobić?")
         do_transcribe = st.checkbox("Transkrypcja (Whisper)", value=True)
         do_extraction = st.checkbox(
@@ -264,8 +285,8 @@ def main():
         else:
             st.error("FFmpeg: BRAK - wymagany do konwersji audio!", icon="⚠️")
 
-    # Dzielimy aplikację na dwie główne zakładki
-    tab_main, tab_lab = st.tabs(["📂 Przetwarzanie Audio", "✍️ Laboratorium Tekstu"])
+    # Dzielimy aplikację na główne zakładki
+    tab_main, tab_lab, tab_batch = st.tabs(["📂 Przetwarzanie Audio", "✍️ Laboratorium Tekstu", "☁️ Cloud Batch"])
 
     # --- TAB 1: Przetwarzanie Audio ---
     with tab_main:
@@ -695,6 +716,75 @@ def main():
                             st.session_state['generated_content'] = None
                             st.session_state['current_output_filename'] = None
                             st.rerun()
+
+    # --- TAB 3: CLOUD BATCH ---
+    with tab_batch:
+        st.header("☁️ OpenAI Batch API")
+        st.info("Batch API pozwala na przetwarzanie wielu plików o 50% taniej. Wyniki są zazwyczaj gotowe w ciągu godziny.")
+        
+        if not OPENAI_API_KEY:
+            st.error("Skonfiguruj klucz API OpenAI w Sidebarze, aby korzystać z tej funkcji.")
+        else:
+            bm = BatchManager()
+            
+            b_col1, b_col2 = st.columns([1, 1])
+            
+            with b_col1:
+                st.subheader("📤 Nowe zadanie")
+                batch_files = st.multiselect(
+                    "Wybierz transkrypcje (.txt) do analizy zbiorczej:",
+                    glob.glob(os.path.join(DATA_OUTPUT, "*.txt")),
+                    format_func=lambda x: os.path.basename(x)
+                )
+                
+                if st.button("🚀 Uruchom Batch", type="primary", disabled=not batch_files):
+                    # Logic to create batch
+                    all_reqs = []
+                    for f_path in batch_files:
+                        with open(f_path, "r", encoding="utf-8") as f:
+                            text = f.read()
+                        
+                        # Tutaj tworzymy uproszczone zapytanie do batcha
+                        # (Wersja demo: Ekstrakcja wiedzy)
+                        from src.utils.config import MODEL_EXTRACTOR_OPENAI
+                        req = {
+                            "custom_id": os.path.basename(f_path),
+                            "method": "POST",
+                            "url": "/v1/chat/completions",
+                            "body": {
+                                "model": MODEL_EXTRACTOR_OPENAI,
+                                "messages": [
+                                    {"role": "system", "content": "Jesteś analitykiem. Wyciągnij kluczowe fakty z tekstu."},
+                                    {"role": "user", "content": text[:10000]} # Ograniczenie dla bezpieczeństwa
+                                ]
+                            }
+                        }
+                        all_reqs.append(req)
+                    
+                    batch_file_path = bm.create_batch_file(all_reqs, f"batch_{int(time.time())}.jsonl")
+                    batch_id = bm.upload_and_submit(batch_file_path, f"Analiza {len(batch_files)} plików")
+                    st.success(f"Wysłano! ID: {batch_id}")
+            
+            with b_col2:
+                st.subheader("🕒 Aktywne zadania")
+                if st.button("🔄 Odśwież listę"):
+                    st.rerun()
+                
+                try:
+                    batches = bm.list_active_batches()
+                    for b in batches:
+                        with st.expander(f"Batch {b.id[:8]}... ({b.status})"):
+                            st.write(f"Status: **{b.status}**")
+                            st.write(f"Utworzono: {time.ctime(b.created_at)}")
+                            if b.status == "completed":
+                                if st.button("📥 Pobierz wyniki", key=b.id):
+                                    results = bm.retrieve_results(b.id)
+                                    st.json(results[:3]) # Podgląd
+                                    st.download_button("Pobierz JSONL", str(results), file_name=f"results_{b.id}.json")
+                            elif b.status in ["in_progress", "validating"]:
+                                st.spinner("Przetwarzanie...")
+                except Exception as e:
+                    st.error(f"Błąd pobierania listy: {e}")
 
     # --- Logi na dole strony (w expander) ---
     with st.expander("📋 Logi systemowe", expanded=False):
