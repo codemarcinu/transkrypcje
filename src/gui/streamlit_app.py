@@ -5,6 +5,8 @@ import json
 import glob
 import threading
 import shutil
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -775,7 +777,9 @@ def main():
                     for b in batches:
                         with st.expander(f"Batch {b.id[:8]}... ({b.status})"):
                             st.write(f"Status: **{b.status}**")
-                            st.write(f"Utworzono: {time.ctime(b.created_at)}")
+                            # Konwersja timestampa na czytelną datę
+                            dt_object = datetime.fromtimestamp(b.created_at)
+                            st.write(f"Utworzono: {dt_object.strftime('%Y-%m-%d %H:%M:%S')}")
                             if b.status == "completed":
                                 if st.button("📥 Pobierz wyniki", key=b.id):
                                     results = bm.retrieve_results(b.id)
