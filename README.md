@@ -16,13 +16,17 @@ System działa w trzech fazach:
     - **Zadanie**: Analizuje tekst fragment po fragmencie, wyciągając kluczowe informacje, techniki i pojęcia.
     - **Wynik**: Baza wiedzy w formacie JSON (`data/processed/`).
 
-3.  **Generowanie Treści (Reduce)**
+3.  **Generowanie Treści (Reduce & PKM)**
     - **Agent**: `Writer` (oparty na **Bielik 11B v3**)
-    - **Zadanie**: Agreguje zebraną wiedzę i pisze spójny rozdział podręcznika lub opracowanie na zadany temat.
-    - **Cechy**: Styl techniczny, inżynierski konkret, brak lania wody.
+    - **Zadanie**: Agreguje zebraną wiedzę i pisze spójny rozdział w formacie **Obsidian Markdown**.
+    - **Cechy**: 
+        - **YAML Frontmatter**: Automatyczne metadane (tags, status).
+        - **Wikilinks**: Linkowanie narzędzi i pojęć `[[Narzędzie]]`.
+        - **Indeks Źródłowy**: Śledzenie pochodzenia wiedzy we fragmentach transkrypcji.
 
-3.  **Optymalizacja Modelu**
-    - Wykorzystujemy customowy model `bielik-writer` z parametrami `repeat_penalty=1.15` (zapobieganie pętlom) i wymuszonym formatem ChatML.
+4.  **Zarządzanie Zasobami & Stabilność**
+    - **Retry Logic**: System automatycznie ponawia błędy ekstrakcji.
+    - **VRAM Optimization**: Wymuszone czyszczenie pamięci GPU (`gc` + `torch.cuda.empty_cache()`) dla stabilnej pracy na kartach 12GB.
 
 ## 📂 Struktura Katalogów
 
@@ -74,6 +78,10 @@ Po prostu kliknij dwukrotnie plik:
 - Temat wypełni się automatycznie – możesz go zmienić.
 - Kliknij **"Generuj Notatki"**.
 - Wynik zobaczysz od razu pod przyciskiem.
+- Jeśli masz skonfigurowany **Obsidian Vault**, możesz wysłać notatkę jednym kliknięciem.
+
+> [!TIP]
+> Jeśli system zwolni lub zauważysz wysokie zużycie VRAM, użyj przycisku **"Zwolnij VRAM"** w bocznym panelu.
 
 > [!TIP]
 > Wszystkie techniczne opcje (wybór modelu, języka, folderów) zostały ukryte w zakładce **"⚙️ Ustawienia Zaawansowane"** w bocznym panelu, aby interfejs pozostawał przejrzysty.

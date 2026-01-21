@@ -1,3 +1,27 @@
+# Changelog - Wersja 3.4 (Obsidian PKM & Reliability)
+
+## 🚀 Nowości: Optymalizacja pod Obsidian i Stabilność
+
+### 1. **Integracja z Obsidian (PKM)**
+- **YAML Frontmatter**: Automatyczne generowanie metadanych (tags, status, type, source) zgodnych z Obsidianem.
+- **Wikilinks**: Automatyczne linkowanie narzędzi i pojęć (`[[Narzędzie]]`) dla łatwego budowania grafu wiedzy.
+- **Indeks Źródłowy**: Nowa sekcja na końcu notatki pozwalająca na szybki powrót do konkretnego fragmentu transkrypcji.
+- **Eksport do Vaulta**: Bezpośredni przycisk w GUI pozwalający na wysłanie notatki do folderu Obsidian.
+
+### 2. **Stabilność i Jakość (Fixing Silent Failures)**
+- **Retry Logic (Extractor)**: Agent ekstrakcji automatycznie ponawia próbę (do 3 razy) w przypadku błędów walidacji JSON lub problemów z komunikacją z LLM.
+- **Bezpieczne Oznaczanie Fragmentów**: Wprowadzono format `Part X (Y%)` jako "kotwice" czasowe, co eliminuje błędy estymacji czasu w plikach bez timestampów.
+
+### 3. **Zarządzanie Pamięcią (VRAM Cleanup)**
+- **Force Unload**: Nowy przycisk "Zwolnij VRAM" w sidebarze Streamlit.
+- **Wymuszone Czyszczenie**: Integracja z `torch.cuda.empty_cache()` i `gc.collect()` po każdej sesji pracy agentów, co jest kluczowe dla kart RTX 3060.
+
+### 4. **Usprawnienia Pipeline & UI**
+- **Statystyki Wiedzy**: Agregacja i wyświetlanie liczby znalezionych narzędzi i pojęć w logach oraz raporcie końcowym.
+- **Konfiguracja Vaulta**: Stałe pole w ustawieniach ścieżek dla Twojego Vaulta Obsidian.
+
+---
+
 # Changelog - Wersja 3.3 (YouTube Subtitles & Generic Content)
 
 ## 🚀 Nowości: Optymalizacja i Generalizacja
