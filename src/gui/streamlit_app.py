@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import threading
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -85,11 +86,22 @@ def main():
         # 4. Ścieżki
         with st.expander("📂 Ścieżki i Pliki", expanded=False):
             output_path = st.text_input("Folder zapisu:", value=os.path.abspath(DATA_OUTPUT))
+            obsidian_vault = st.text_input("Vault Obsidian (opcjonalnie):", value="", help="Ścieżka do Twojego folderu Obsidian PKM.")
             output_format = st.selectbox("Format transkrypcji:", options=["txt", "txt_no_timestamps", "srt", "vtt"])
             yt_quality = st.selectbox("Jakość YT:", ["best", "worst", "audio_only"])
             audio_bitrate = "128k"
 
-        # 5. Status
+        # 5. Narzędzia Systemowe
+        with st.sidebar:
+            st.divider()
+            if st.button("🧹 Zwolnij VRAM (Force)", use_container_width=True):
+                from src.core.llm_engine import unload_model
+                from src.utils.config import MODEL_EXTRACTOR, MODEL_WRITER
+                unload_model(MODEL_EXTRACTOR)
+                unload_model(MODEL_WRITER)
+                st.toast("Pamięć VRAM została wyczyszczona!", icon="🧹")
+
+        # 6. Status
         st.divider()
         st.caption("🖥️ Status Systemu")
         ffmpeg_ok, _ = check_ffmpeg()
@@ -248,9 +260,13 @@ def main():
                 else:
                     status.update(label="⚠️ Zakończono bez wyniku", state="complete")
 
-        except Exception as e:
             st.error(f"❌ Wystąpił błąd: {e}")
             logger.log(f"Error in UI: {e}")
+        
+        # Statystyki po zakończeniu (jeśli to był kurs)
+        if start_content_gen and 'final_result_path' in locals() and final_result_path:
+            # Próbujemy odczytać statystyki z backupu lub logów (uproszczone wyświetlanie metryk)
+            st.info("Podręcznik został wygenerowany z użyciem [[Wikilinks]] i YAML Frontmatter.")
 
     # --- SEKCJA PODGLĄDU (PERSISTENT) ---
     if 'last_generated_result' in st.session_state and os.path.exists(st.session_state['last_generated_result']):
@@ -272,6 +288,20 @@ def main():
                 file_name=os.path.basename(result_file),
                 mime="text/markdown" if result_file.endswith('.md') else "text/plain"
             )
+            
+            # Obsidian Export Button
+            if result_file.endswith('.md') and obsidian_vault:
+                if st.button("🚀 Wyślij do Obsidian Vault", type="primary"):
+                    try:
+                        vault_path = Path(obsidian_vault)
+                        if vault_path.exists():
+                            target = vault_path / os.path.basename(result_file)
+                            shutil.copy(result_file, target)
+                            st.success(f"Skopiowano do Obsidian: `{target}`")
+                        else:
+                            st.error(f"Ścieżka Vaulta nie istnieje: `{obsidian_vault}`")
+                    except Exception as e:
+                        st.error(f"Błąd eksportu: {e}")
         except Exception as e:
             st.error(f"Nie można wczytać podglądu: {e}")
 

@@ -28,28 +28,40 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
     # 2. Mapowanie (Ekstrakcja)
     knowledge_base = []
     failed_chunks = 0
+    stats = {
+        "tools": 0,
+        "concepts": 0,
+        "topics": 0,
+        "tips": 0
+    }
     
     print(f"\n🕵️ Ekstrakcja wiedzy (Model: {MODEL_EXTRACTOR})...")
     
+    total_chunks = len(chunks)
     for i, chunk in enumerate(tqdm(chunks)):
-        graph = extract_knowledge(chunk)
+        # Oznaczanie fragmentu (Part X (Y%))
+        progress_pct = int(((i + 1) / total_chunks) * 100)
+        time_tag = f"Part {i+1} ({progress_pct}%)"
         
-        # Wykrywanie cichego błędu (pusty graf zwrócony przez exception)
+        graph = extract_knowledge(chunk, time_range=time_tag)
+        
+        # Wykrywanie cichego błędu
         is_empty_graph = not any([graph.topics, graph.tools, graph.key_concepts, graph.tips])
         
         if is_empty_graph:
-            if len(chunk) > 100: # Ignorujemy puste końcówki
+            if len(chunk) > 100:
                 failed_chunks += 1
-                print(f"\n⚠️ [OSTRZEŻENIE] Fragment {i+1} zwrócił puste dane.")
+                print(f"\n⚠️ [OSTRZEŻENIE] Fragment {time_tag} zwrócił puste dane.")
         
-        # Walidacja URLi narzędzi
-        valid_tools = []
+        # Walidacja URLi i zbieranie statystyk
         for tool in graph.tools:
+            stats["tools"] += 1
             if tool.url and not verify_url(tool.url):
-                print(f"\n⚠️ Wykryto błędny URL: {tool.url} (Narzędzie: {tool.name}) -> Usuwam URL.")
-                tool.url = None # Usuwamy tylko URL, zostawiamy narzędzie
-            valid_tools.append(tool)
-        graph.tools = valid_tools
+                tool.url = None
+        
+        stats["concepts"] += len(graph.key_concepts)
+        stats["topics"] += len(graph.topics)
+        stats["tips"] += len(graph.tips)
         
         knowledge_base.append(graph.model_dump())
         
@@ -60,8 +72,10 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
 
     # Raport końcowy ekstrakcji
     print(f"\n📊 RAPORT EKSTRAKCJI:")
-    print(f"   - Przetworzono: {len(chunks)}")
-    print(f"   - Błędy/Puste: {failed_chunks}")
+    print(f"   - Przetworzono: {len(chunks)} fragmentów")
+    print(f"   - Znaleziono narzędzi: {stats['tools']}")
+    print(f"   - Zdefiniowano pojęć: {stats['concepts']}")
+    print(f"   - Wykryto błędów: {failed_chunks}")
     if failed_chunks > 0:
         print(f"   🚨 UWAGA: Brakuje {failed_chunks} fragmentów wiedzy.")
 

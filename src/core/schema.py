@@ -18,3 +18,4 @@ class KnowledgeGraph(BaseModel):
     tools: List[ToolInfo] = Field(..., description="Lista narzędzi wspomnianych w tekście")
     key_concepts: List[Concept] = Field(..., description="Kluczowe pojęcia i definicje")
     tips: List[str] = Field(..., description="Praktyczne wskazówki")
+    time_range: Optional[str] = Field(default=None, description="Zakres czasowy lub indeks fragmentu (np. Part 1)")
