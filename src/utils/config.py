@@ -27,8 +27,8 @@ DEFAULT_OLLAMA_MODEL = MODEL_EXTRACTOR
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
 # Parametry przetwarzania
-CHUNK_SIZE = 8000  # Znaków na fragment (Qwen ma duże okno kontekstowe)
-OVERLAP = 200      # Zakładka, żeby nie uciąć kontekstu
+CHUNK_SIZE = 5000  # Zmniejszono z 8000 dla lepszej stabilności VRAM (RTX 3060)
+OVERLAP = 300      # Zwiększono zakładkę dla lepszej ciągłości wiedzy
 
 # Ścieżki
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

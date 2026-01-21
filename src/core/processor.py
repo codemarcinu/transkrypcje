@@ -57,14 +57,27 @@ class ContentProcessor:
         return self.summarizer.summarize_from_file(file_path, model_name, max_chars, style)
 
     def run_content_generation(self, input_file, topic, model_name="bielik"):
-        # Używamy nowego pipeline'u (Instructor + Qwen/Bielik)
+        """Uruchamia pełny proces Map-Reduce z czyszczeniem VRAM."""
         from main_pipeline import run_pipeline
+        from src.utils.config import DATA_OUTPUT, MODEL_EXTRACTOR, MODEL_WRITER
+        from src.core.llm_engine import unload_model
         
-        # main_pipeline.run_pipeline expects input_path, output_dir, topic
-        # We'll use DATA_OUTPUT from config as default output_dir
-        from src.utils.config import DATA_OUTPUT
+        self.logger.log(f"Inicjowanie generowania treści dla {input_file}...")
         
-        self.logger.log(f"Uruchamianie generatora treści dla {input_file} (Temat: {topic}, Model: {model_name})...")
+        # Prewencyjne czyszczenie VRAM (wyładowanie Whisper i starych modeli)
+        try:
+            import torch
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            # Próbujemy zwolnić oba modele LLM na wszelki wypadek
+            unload_model(MODEL_EXTRACTOR)
+            unload_model(MODEL_WRITER)
+        except Exception as e:
+            self.logger.log(f"Wskazówka: Nie udało się prewencyjnie zwolnić VRAM: {e}")
+
         try:
             run_pipeline(input_path=input_file, output_dir=DATA_OUTPUT, topic=topic)
             self.logger.log("Pipeline zakończony.")
