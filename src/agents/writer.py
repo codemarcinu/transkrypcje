@@ -1,83 +1,97 @@
-import json
-from src.core.llm_engine import call_ollama
-from src.utils.config import MODEL_WRITER
+from datetime import datetime
+from src.core.llm_engine import LLMEngine
 
-def generate_chapter(topic_name: str, aggregated_data: list) -> str:
-    """Faza REDUCE: Pisze rozdział na podstawie zebranych notatek w formacie Obsidian."""
-    
-    # 1. Agregacja metadanych do Frontmattera
-    all_topics = set()
-    all_tools = set()
-    source_index = []
-    
-    context_str = ""
-    for item in aggregated_data:
-        # Zbieramy tagi
-        if 'topics' in item:
-            all_topics.update(item['topics'])
+class ReportWriter:
+    def __init__(self):
+        self.llm = LLMEngine(model_type="writer")
+
+    def generate_chapter(self, topic_name: str, aggregated_data: list) -> str:
+        """
+        Generuje notatkę w formacie Obsidian Markdown.
+        """
+        
+        # 1. Przygotowanie danych do Frontmattera (Tagi)
+        all_topics = set()
+        context_items = []
+        
+        # Zbieranie danych do promptu i indeksu
+        for item in aggregated_data:
+            # item to słownik zrzutowany z KnowledgeGraph
+            if 'topics' in item and item['topics']:
+                all_topics.update(item['topics'])
             
-        # Zbieramy narzędzia (jako Wikilinks)
-        if 'tools' in item and item['tools']:
-            for t in item['tools']:
-                all_tools.add(t['name'])
-                context_str += f"- Narzędzie: [[{t['name']}]] - {t['description']}\n"
-                
-        # Zbieramy pojęcia (jako Wikilinks)
-        if 'key_concepts' in item and item['key_concepts']:
-            for c in item['key_concepts']:
-                context_str += f"- Pojęcie: [[{c['term']}]] - {c['definition']}\n"
-                
-        # Wskazówki
-        if 'tips' in item and item['tips']:
-            for tip in item['tips']:
-                context_str += f"- Wskazówka: {tip}\n"
-                
-        # Indeks źródłowy ( timestamp lub Part X)
-        if 'time_range' in item:
-            source_index.append(item['time_range'])
+            # Budowanie kontekstu dla LLM (spłaszczanie wiedzy)
+            if 'key_concepts' in item:
+                for concept in item['key_concepts']:
+                    context_items.append(f"- Pojęcie: {concept['term']} - {concept['definition']}")
+            if 'tools' in item:
+                for tool in item['tools']:
+                    context_items.append(f"- Narzędzie: {tool['name']} - {tool['description']}")
+            if 'tips' in item:
+                for tip in item['tips']:
+                    context_items.append(f"- Wskazówka: {tip}")
 
-    # Formatowanie tagów dla YAML
-    tags_yaml = [t.lower().replace(" ", "_") for t in list(all_topics)[:10]]
-    
-    system_prompt = """
-    Jesteś architektem wiedzy (Knowledge Manager). Tworzysz notatki w formacie Obsidian Markdown.
-    Piszesz w języku polskim.
+        # Ograniczenie liczby tagów do 10 najciekawszych (żeby nie spamować YAML)
+        tags_list = [t.lower().replace(" ", "_") for t in list(all_topics)[:10]]
+        
+        # 2. Generowanie YAML Frontmatter (HARDCODED w Pythonie)
+        # To gwarantuje, że Obsidian zawsze poprawnie odczyta metadane.
+        yaml_header = f"""---
+tags: {tags_list}
+topic: "{topic_name}"
+type: training_note
+status: to_process
+created: {datetime.now().strftime('%Y-%m-%d')}
+source: "Sekurak Academy"
+---
 
-    WYMAGANIA STRUKTURALNE:
-    1. Na samym początku MUSI być blok YAML Frontmatter.
-    2. Używaj "Wikilinks" (podwójne nawiasy [[ ]]) dla kluczowych pojęć i narzędzi.
-    3. Styl: Zwięzły, techniczny, wypunktowany ("mięso" inżynierskie).
-    4. Sekcja "## TL;DR" na początku (po YAML).
-    5. Nie wymyślaj informacji spoza notatek.
-    """
-    
-    source_index_str = "\n".join([f"- {m}" for m in source_index])
-    
-    user_prompt = f"""
-    TEMAT: {topic_name}
-    
-    DANE WYJŚCIOWE:
-    {context_str}
-    
-    Wypełnij YAML:
-    ---
-    tags: {tags_yaml}
-    status: to_process
-    type: training_note
-    source: Sekurak Academy
-    ---
-    
-    ZADANIE:
-    Stwórz pełną notatkę w Markdown. 
-    Używaj [[Linków]] dla narzędzi i pojęć.
-    Na końcu dodaj sekcję:
-    ## Indeks Źródłowy
-    {source_index_str}
-    """
-    
-    return call_ollama(
-        model=MODEL_WRITER,
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        json_mode=False
-    )
+"""
+
+        # 3. Wywołanie LLM dla treści głównej
+        system_prompt = """
+        Jesteś Architektem Wiedzy (PKM Expert). Piszesz notatki w formacie Markdown zoptymalizowanym dla Obsidiana.
+        
+        WYMAGANIA:
+        1. Używaj "Wikilinks" [[Termin]] dla kluczowych pojęć i narzędzi wymienionych w danych.
+        2. Styl: Zwięzły, techniczny, wypunktowany.
+        3. Sekcja "TL;DR" musi znaleźć się zaraz po tytule (pomijając YAML).
+        4. NIE generuj nagłówka YAML ani H1 z tytułem pliku (zrobię to sam).
+        """
+        
+        user_prompt = f"""
+        TEMAT: {topic_name}
+        
+        DANE WSADOWE:
+        {chr(10).join(context_items)}
+        
+        ZADANIE:
+        Napisz treść notatki. Zacznij od nagłówka H2 (## Wstęp / TL;DR).
+        Skup się na relacjach między pojęciami.
+        """
+        
+        content_response = self.llm.generate(system_prompt, user_prompt)
+
+        # 4. Generowanie Indeksu Źródłowego (Nowość!)
+        # Tworzymy listę linków czasowych na dole notatki
+        source_index = "\n\n---\n## 📍 Indeks Źródłowy\n"
+        source_index += "| Czas | Tematy / Narzędzia |\n|---|---|\n"
+        
+        for item in aggregated_data:
+            time_marker = item.get('time_range', 'N/A')
+            # Filtrujemy puste wpisy
+            topics = item.get('topics', [])[:3] # Max 3 tematy na linię
+            tools = [t['name'] for t in item.get('tools', [])][:2] # Max 2 narzędzia
+            
+            combined_tags = ", ".join(topics + tools)
+            if combined_tags and time_marker:
+                 source_index += f"| **{time_marker}** | {combined_tags} |\n"
+
+        # 5. Sklejenie wszystkiego w jeden plik
+        final_document = yaml_header + content_response + source_index
+        
+        return final_document
+
+# Wrapper dla zachowania kompatybilności wstecznej
+def generate_chapter(topic_name: str, aggregated_data: list) -> str:
+    writer = ReportWriter()
+    return writer.generate_chapter(topic_name, aggregated_data)
