@@ -53,45 +53,50 @@ class StreamlitProgress:
 def main():
     st.title("🎓 AI Course & Content Generator")
 
+    # Inicjalizacja Session State
+    if 'selected_file_for_generation' not in st.session_state:
+        st.session_state['selected_file_for_generation'] = None
+    if 'auto_switch_tab' not in st.session_state:
+        st.session_state['auto_switch_tab'] = False # Placeholder if we find a way to switch tabs
+
     # --- SIDEBAR: KONFIGURACJA GŁÓWNA ---
     with st.sidebar:
         st.header("⚙️ Konfiguracja")
         
-        # 1. Główne zadania (Eksponowane lub w zwiniętym dla porządku)
-        with st.expander("🛠️ Zadania i Proces", expanded=True):
-            do_transcribe = st.checkbox("Wykonaj transkrypcję", value=True, help="Używa Whisper do zamiany mowy na tekst")
-            download_subs = st.checkbox("Pobierz napisy", value=True, help="Użyj napisów YouTube zamiast Whisper")
-            do_summarize = st.checkbox("Generuj podsumowanie", value=True)
-            do_content_gen_on_fly = st.checkbox("Generuj Podręcznik (Treść)", value=False)
+        # 1. Model Whisper (Krytyczne - wyciągnięte na wierzch)
+        st.subheader("🎙️ Model Whisper")
+        language = st.selectbox("Język audio:", options=list(WHISPER_LANGUAGES.keys()), index=list(WHISPER_LANGUAGES.keys()).index("Polski"))
+        model_size = st.selectbox("Wielkość modelu:", options=WHISPER_MODELS, index=WHISPER_MODELS.index(DEFAULT_MODEL_SIZE), help="Większy model = lepsza jakość, ale wolniej.")
 
-        # 2. Parametry AI
-        with st.expander("🤖 Modele i Parametry", expanded=False):
-            st.markdown("**Whisper**")
-            language = st.selectbox("Język audio:", options=list(WHISPER_LANGUAGES.keys()), index=list(WHISPER_LANGUAGES.keys()).index("Polski"))
-            model_size = st.selectbox("Model AI Whisper:", options=WHISPER_MODELS, index=WHISPER_MODELS.index(DEFAULT_MODEL_SIZE))
-            
-            st.divider()
-            
-            st.markdown("**Analiza LLM**")
+        st.divider()
+
+        # 2. Główne zadania
+        with st.expander("🛠️ Zadania i Proces", expanded=True):
+            do_transcribe = st.checkbox("Wykonaj transkrypcję", value=True)
+            download_subs = st.checkbox("Pobierz napisy (jeśli są)", value=True)
+            do_summarize = st.checkbox("Generuj podsumowanie", value=True)
+            do_content_gen_on_fly = st.checkbox("Generuj Podręcznik (Automatycznie)", value=False, help="Jeśli zaznaczone, tworzy podręcznik od razu po transkrypcji.")
+
+        # 3. Parametry LLM
+        with st.expander("🧠 Ustawienia LLM", expanded=False):
             model_name_llm = st.selectbox("Model LLM", ["bielik", "qwen2.5-coder:32b"], index=0)
             summary_style = st.selectbox("Styl podsumowania:", options=["Zwięzłe (3 punkty)", "Krótkie (1 akapit)", "Szczegółowe (Pełne)"])
 
-        # 3. Ścieżki i Formaty
-        with st.expander("📂 Ścieżki i Formaty", expanded=False):
+        # 4. Ścieżki
+        with st.expander("📂 Ścieżki i Pliki", expanded=False):
             output_path = st.text_input("Folder zapisu:", value=os.path.abspath(DATA_OUTPUT))
             output_format = st.selectbox("Format transkrypcji:", options=["txt", "txt_no_timestamps", "srt", "vtt"])
             yt_quality = st.selectbox("Jakość YT:", ["best", "worst", "audio_only"])
             audio_bitrate = "128k"
 
-        # 4. Status Systemu
+        # 5. Status
         st.divider()
-        st.subheader("🖥️ Status Systemu")
+        st.caption("🖥️ Status Systemu")
         ffmpeg_ok, _ = check_ffmpeg()
         if ffmpeg_ok:
-            st.success("FFmpeg: Dostępny")
+            st.success("FFmpeg: OK")
         else:
-            st.error("FFmpeg: Brak!")
-            st.warning("Pobieranie w wysokiej jakości może zawieść.")
+            st.error("FFmpeg: BRAK")
 
     # --- GŁÓWNY WIDOK ---
     tab_yt, tab_local, tab_content, tab_logs = st.tabs(["📺 YouTube", "📂 Pliki Lokalne", "📝 Generowanie Treści", "📋 Logi"])
@@ -118,11 +123,22 @@ def main():
             txt_files = [f for f in os.listdir(DATA_OUTPUT) if f.endswith('.txt') and not f.endswith('_podsumowanie.txt')]
             txt_files.sort(key=lambda x: os.path.getmtime(os.path.join(DATA_OUTPUT, x)), reverse=True)
         else:
+            st.warning(f"Katalog {DATA_OUTPUT} jest pusty lub nie istnieje!")
             txt_files = []
             
-        selected_file_name = st.selectbox("Wybierz plik transkrypcji:", txt_files, key="select_file_content")
+        # Determine index based on session state
+        pre_idx = 0
+        if st.session_state['selected_file_for_generation'] in txt_files:
+            pre_idx = txt_files.index(st.session_state['selected_file_for_generation'])
+
+        selected_file_name = st.selectbox(
+            "Wybierz plik transkrypcji:", 
+            txt_files, 
+            index=pre_idx,
+            key="select_file_content"
+        )
         
-        # Auto-temat
+        # Auto-temat (Dynamic)
         clean_topic_name = ""
         if selected_file_name:
             clean_topic_name = selected_file_name.replace("_transkrypcja.txt", "").replace(".txt", "").replace("_", " ").title()
@@ -221,6 +237,14 @@ def main():
                     st.session_state['last_generated_result'] = final_result_path
                     status.update(label="✅ Gotowe!", state="complete", expanded=False)
                     st.success(f"Zakończono! Wynik zapisany w: `{final_result_path}`")
+                    
+                    # Button to quick start generation
+                    if final_result_path and final_result_path.endswith('.txt'):
+                        cols = st.columns([1, 2])
+                        with cols[0]:
+                            if st.button("➡️ Generuj Podręcznik z tego pliku"):
+                                st.session_state['selected_file_for_generation'] = os.path.basename(final_result_path)
+                                st.info("Plik wybrany! Przejdź do zakładki 'Generowanie Treści'.")
                 else:
                     status.update(label="⚠️ Zakończono bez wyniku", state="complete")
 
@@ -253,10 +277,18 @@ def main():
 
     # --- Logs Tab ---
     with tab_logs:
+        st.markdown("### 📋 Logi Systemowe")
         if os.path.exists("app_debug.log"):
             with open("app_debug.log", "r", encoding="utf-8") as f:
-                logs = f.readlines()[-100:]
-            st.code("".join(logs), language="log")
+                logs = f.readlines()[-50:] # Show last 50 lines
+            
+            # Styl terminala
+            log_content = "".join(logs)
+            st.markdown(f"""
+            <div style="background-color: #0e1117; color: #00ff00; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; height: 400px; overflow-y: scroll;">
+            {log_content}
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.info("Brak pliku logów.")
 
