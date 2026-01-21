@@ -58,23 +58,26 @@ class Transcriber:
         return segments, info
 
     def save_transcription(self, segments, info, filename, output_format, language):
-        """Zapisuje transkrypcję - ZAWSZE najpierw do JSON, potem konwertuje do wybranego formatu.
+        """Zapisuje transkrypcję - ZAWSZE najpierw do JSON i TXT, potem konwertuje do wybranego formatu.
 
         Returns:
             tuple: (output_file, json_file) - ścieżki do pliku wyjściowego i bazowego JSON
         """
         base_name = os.path.splitext(filename)[0]
         json_file = base_name + "_transkrypcja.json"
+        txt_baseline = base_name + "_transkrypcja.txt"
 
         # 1. ZAWSZE zapisz do JSON (konsumuje generator, zwraca listę segmentów)
         segments_list = self._save_json(segments, info, json_file, language)
 
-        # 2. Konwertuj do wybranego formatu (używa listy, nie generatora)
+        # 2. ZAWSZE zapisz bazowy TXT (żądanie użytkownika)
+        self._convert_to_txt(segments_list, info, txt_baseline, language)
+
+        # 3. Wybierz plik wyjściowy zgodny z żądaniem UI
         if output_format == "json":
             output_file = json_file
         elif output_format == "txt":
-            output_file = base_name + "_transkrypcja.txt"
-            self._convert_to_txt(segments_list, info, output_file, language)
+            output_file = txt_baseline
         elif output_format == "srt":
             output_file = base_name + "_transkrypcja.srt"
             self._convert_to_srt(segments_list, output_file)
@@ -82,11 +85,10 @@ class Transcriber:
             output_file = base_name + "_transkrypcja.vtt"
             self._convert_to_vtt(segments_list, output_file)
         elif output_format == "txt_no_timestamps":
-            output_file = base_name + "_transkrypcja.txt"
+            output_file = base_name + "_transkrypcja_no_ts.txt"
             self._convert_to_txt_no_timestamps(segments_list, info, output_file, language)
         else:
-            output_file = base_name + "_transkrypcja.txt"
-            self._convert_to_txt(segments_list, info, output_file, language)
+            output_file = txt_baseline
 
         # Cleanup memory after consumption
         self.current_model = None
