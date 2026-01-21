@@ -12,24 +12,35 @@ class ReportWriter:
         
         # 1. Przygotowanie danych do Frontmattera (Tagi)
         all_topics = set()
-        context_items = []
         
-        # Zbieranie danych do promptu i indeksu
+        # Uproszczona struktura danych JSON dla LLM (Opcja B)
+        # Przekazujemy kluczowe informacje w strukturze, żeby model widział powiązania.
+        simplified_data = []
+        
         for item in aggregated_data:
-            # item to słownik zrzutowany z KnowledgeGraph
+            simplified_item = {}
+            
             if 'topics' in item and item['topics']:
                 all_topics.update(item['topics'])
+                simplified_item['topics'] = item['topics']
             
-            # Budowanie kontekstu dla LLM (spłaszczanie wiedzy)
             if 'key_concepts' in item:
-                for concept in item['key_concepts']:
-                    context_items.append(f"- Pojęcie: {concept['term']} - {concept['definition']}")
+                simplified_item['concepts'] = [
+                    {"term": c['term'], "definition": c['definition']} 
+                    for c in item['key_concepts']
+                ]
+            
             if 'tools' in item:
-                for tool in item['tools']:
-                    context_items.append(f"- Narzędzie: {tool['name']} - {tool['description']}")
+                simplified_item['tools'] = [
+                    {"name": t['name'], "description": t['description']} 
+                    for t in item['tools']
+                ]
+            
             if 'tips' in item:
-                for tip in item['tips']:
-                    context_items.append(f"- Wskazówka: {tip}")
+                simplified_item['tips'] = item['tips']
+                
+            if simplified_item:
+                simplified_data.append(simplified_item)
 
         # Ograniczenie liczby tagów do 10 najciekawszych (żeby nie spamować YAML)
         tags_list = [t.lower().replace(" ", "_") for t in list(all_topics)[:10]]
@@ -48,25 +59,35 @@ source: "Sekurak Academy"
 """
 
         # 3. Wywołanie LLM dla treści głównej
-        system_prompt = """
-        Jesteś Architektem Wiedzy (PKM Expert). Piszesz notatki w formacie Markdown zoptymalizowanym dla Obsidiana.
+        import json
         
+        system_prompt = """
+        Jesteś Architektem Wiedzy (PKM Expert) i Redaktorem Technicznym.
+        Tworzysz pogłębione materiały szkoleniowe na podstawie surowych danych.
+
         WYMAGANIA:
         1. Używaj "Wikilinks" [[Termin]] dla kluczowych pojęć i narzędzi wymienionych w danych.
-        2. Styl: Zwięzły, techniczny, wypunktowany.
-        3. Sekcja "TL;DR" musi znaleźć się zaraz po tytule (pomijając YAML).
-        4. NIE generuj nagłówka YAML ani H1 z tytułem pliku (zrobię to sam).
+        2. STYL: Narracyjny, edukacyjny i szczegółowy. Unikaj nadmiernego punktowania faktów.
+        3. Łącz fakty w związki przyczynowo-skutkowe (np. "Wynika z tego, że...", "W przeciwieństwie do...").
+        4. Sekcja "TL;DR" ma być zwięzła, ale reszta notatki ma być wyczerpująca.
+        5. GROUNDING: Korzystaj wyłącznie z dostarczonych danych. Jeśli czegoś nie ma w danych, nie zmyślaj.
+        6. KRYTYCZNE: Używaj wyłącznie nagłówków poziomu 2 (##) i niższych. NIGDY nie używaj nagłówka poziomu 1 (#).
+        7. NIE generuj nagłówka YAML (zrobię to sam).
         """
         
         user_prompt = f"""
-        TEMAT: {topic_name}
+        # TEMAT: {topic_name}
         
-        DANE WSADOWE:
-        {chr(10).join(context_items)}
+        DANE WSADOWE (JSON):
+        {json.dumps(simplified_data, ensure_ascii=False, indent=2)}
         
         ZADANIE:
-        Napisz treść notatki. Zacznij od nagłówka H2 (## Wstęp / TL;DR).
-        Skup się na relacjach między pojęciami.
+        Napisz rozbudowany rozdział podręcznika w Markdown.
+        - Zacznij od nagłówka ## Wstęp / TL;DR.
+        - Przeanalizuj relacje między pojęciami. 
+        - Jeśli dane zawierają przykłady lub wskazówki, wpleć je w tekst akapitu, zamiast robić listę.
+        - Wyjaśnij "dlaczego" dane pojęcie jest ważne w kontekście tematu.
+        - Stwórz spójną narrację, unikaj suchego wymieniania po przecinku.
         """
         
         content_response = self.llm.generate(system_prompt, user_prompt)
