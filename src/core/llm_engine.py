@@ -53,3 +53,42 @@ def unload_model(model_name: str):
             
     except Exception as e:
         print(f"[WARNING] Nie udało się zwolnić modelu {model_name}: {e}")
+
+class LLMEngine:
+    """Klasa silnika LLM wspierająca ustrukturyzowane i zwykłe generowanie."""
+    def __init__(self, model_type: str):
+        from src.utils.config import MODEL_EXTRACTOR, MODEL_WRITER, OLLAMA_URL
+        import instructor
+        from openai import OpenAI
+        
+        self.model = MODEL_EXTRACTOR if model_type == "extractor" else MODEL_WRITER
+        self.client = instructor.from_openai(
+            OpenAI(
+                base_url=f"{OLLAMA_URL}/v1",
+                api_key="ollama",
+            ),
+            mode=instructor.Mode.JSON,
+        )
+
+    def generate_structured(self, system_prompt: str, user_prompt: str, response_model: type) -> any:
+        return self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_model=response_model,
+            temperature=0.1,
+            extra_body={"options": {"num_ctx": 8192}}
+        )
+
+    def generate(self, system_prompt: str, user_prompt: str) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
