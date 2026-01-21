@@ -48,3 +48,6 @@ RAPORT_TEST.md
 PODRECZNIK_OSINT_FULL.md
 temp_facts_checkpoint.json
 .idea/
+
+# Environment Variables
+.env
