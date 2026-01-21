@@ -260,6 +260,7 @@ def main():
                 else:
                     status.update(label="⚠️ Zakończono bez wyniku", state="complete")
 
+        except Exception as e:
             st.error(f"❌ Wystąpił błąd: {e}")
             logger.log(f"Error in UI: {e}")
         
