@@ -721,82 +721,132 @@ def main():
 
     # --- TAB 3: CLOUD BATCH ---
     with tab_batch:
-        st.header("☁️ OpenAI Batch API")
-        st.info("Batch API pozwala na przetwarzanie wielu plików o 50% taniej. Wyniki są zazwyczaj gotowe w ciągu godziny.")
+        st.header("☁️ OpenAI Cloud Batch")
+        
+        st.markdown("""
+        <div style="background-color: rgba(60, 180, 255, 0.1); padding: 15px; border-radius: 10px; border-left: 5px solid #3cb4ff; margin-bottom: 20px;">
+            <strong>Pro Tip:</strong> Batch API przetwarza dane asynchronicznie (do 24h, zazwyczaj <1h) i kosztuje <strong>50% mniej</strong> niż zapytania standardowe. Idealne do dużych kolekcji plików.
+        </div>
+        """, unsafe_allow_html=True)
         
         if not OPENAI_API_KEY:
-            st.error("Skonfiguruj klucz API OpenAI w Sidebarze, aby korzystać z tej funkcji.")
+            st.warning("🔒 Skonfiguruj klucz API OpenAI w Sidebarze, aby odblokować tę funkcję.")
         else:
             bm = BatchManager()
             
-            b_col1, b_col2 = st.columns([1, 1])
+            # Podział na sekcje z wyraźnym nagłówkiem
+            col_cfg, col_hist = st.columns([1.2, 1])
             
-            with b_col1:
-                st.subheader("📤 Nowe zadanie")
+            with col_cfg:
+                st.subheader("📤 Nowe zadanie zbiorcze")
                 
+                # Pobieramy listę plików
                 available_files = glob.glob(os.path.join(DATA_OUTPUT, "*.txt"))
+                available_files.sort(key=os.path.getmtime, reverse=True)
                 
-                # Przycisk przeniesiony na górę dla lepszej widoczności
-                if st.button("🚀 Uruchom Przetwarzanie Batch", type="primary", use_container_width=True):
-                    if not st.session_state.get('batch_files_selection'):
-                        st.error("Proszę najpierw wybrać pliki z listy poniżej!")
-                    else:
-                        batch_files = st.session_state['batch_files_selection']
-                        # Logic to create batch
-                        all_reqs = []
-                        for f_path in batch_files:
-                            with open(f_path, "r", encoding="utf-8") as f:
-                                text = f.read()
-                            
-                            from src.utils.config import MODEL_EXTRACTOR_OPENAI
-                            req = {
-                                "custom_id": os.path.basename(f_path),
-                                "method": "POST",
-                                "url": "/v1/chat/completions",
-                                "body": {
-                                    "model": MODEL_EXTRACTOR_OPENAI,
-                                    "messages": [
-                                        {"role": "system", "content": "Jesteś analitykiem. Wyciągnij kluczowe fakty z tekstu."},
-                                        {"role": "user", "content": text[:10000]} 
-                                    ]
-                                }
-                            }
-                            all_reqs.append(req)
-                        
-                        batch_file_path = bm.create_batch_file(all_reqs, f"batch_{int(time.time())}.jsonl")
-                        batch_id = bm.upload_and_submit(batch_file_path, f"Analiza {len(batch_files)} plików")
-                        st.success(f"Wysłano zadanie! ID: {batch_id}")
-                        st.balloons()
+                # Kontrolki wyboru
+                c1, c2 = st.columns([1, 1])
+                with c1:
+                    if st.button("➕ Zaznacz wszystkie", use_container_width=True):
+                        st.session_state['batch_files_selector'] = available_files
+                        st.rerun()
+                with c2:
+                    if st.button("❌ Wyczyść wybór", use_container_width=True):
+                        st.session_state['batch_files_selector'] = []
+                        st.rerun()
 
-                st.session_state['batch_files_selection'] = st.multiselect(
-                    "Wybierz transkrypcje (.txt) do analizy zbiorczej:",
+                selected_files = st.multiselect(
+                    "Wybierz pliki do analizy:",
                     available_files,
-                    format_func=lambda x: os.path.basename(x),
-                    key="batch_files_selector"
+                    default=st.session_state.get('batch_files_selector', []),
+                    format_func=lambda x: f"📄 {os.path.basename(x)}",
+                    key="batch_files_selector_ui"
                 )
+                
+                st.divider()
+                
+                # Przycisk startu
+                if st.button("🚀 Uruchom Przetwarzanie", type="primary", use_container_width=True, disabled=not selected_files):
+                    all_reqs = []
+                    for f_path in selected_files:
+                        with open(f_path, "r", encoding="utf-8") as f:
+                            text = f.read()
+                        
+                        from src.utils.config import MODEL_EXTRACTOR_OPENAI
+                        req = {
+                            "custom_id": os.path.basename(f_path),
+                            "method": "POST",
+                            "url": "/v1/chat/completions",
+                            "body": {
+                                "model": MODEL_EXTRACTOR_OPENAI,
+                                "messages": [
+                                    {"role": "system", "content": "Jesteś analitykiem. Wyciągnij kluczowe fakty z tekstu."},
+                                    {"role": "user", "content": text[:15000]} 
+                                ]
+                            }
+                        }
+                        all_reqs.append(req)
+                    
+                    with st.spinner("📦 Przygotowywanie i wysyłka do chmury..."):
+                        batch_file_path = bm.create_batch_file(all_reqs, f"batch_{int(time.time())}.jsonl")
+                        batch_id = bm.upload_and_submit(batch_file_path, f"Analiza {len(selected_files)} plików")
+                        st.success(f"Zadanie wysłane! ID: {batch_id}")
+                        st.balloons()
             
-            with b_col2:
-                st.subheader("🕒 Aktywne zadania")
-                if st.button("🔄 Odśwież listę"):
+            with col_hist:
+                st.subheader("🕒 Historia i Status")
+                
+                if st.button("🔄 Odśwież listę zadań", use_container_width=True):
                     st.rerun()
                 
                 try:
                     batches = bm.list_active_batches()
+                    if not batches:
+                        st.caption("Brak historii zadań.")
+                    
                     for b in batches:
-                        with st.expander(f"Batch {b.id[:8]}... ({b.status})"):
-                            st.write(f"Status: **{b.status}**")
-                            # Konwersja timestampa na czytelną datę
-                            dt_object = datetime.fromtimestamp(b.created_at)
-                            st.write(f"Utworzono: {dt_object.strftime('%Y-%m-%d %H:%M:%S')}")
+                        # Mapowanie statusów na ikony
+                        status_icons = {
+                            "completed": "✅",
+                            "failed": "❌",
+                            "in_progress": "⏳",
+                            "validating": "🔍",
+                            "expired": "⌛",
+                            "cancelling": "🚫",
+                            "cancelled": "⏹️"
+                        }
+                        icon = status_icons.get(b.status, "❓")
+                        
+                        # Czytelniejszy tytuł expandera
+                        dt = datetime.fromtimestamp(b.created_at).strftime('%H:%M')
+                        desc = b.metadata.get("description", "Bez opisu") if b.metadata else "Bez opisu"
+                        title = f"{icon} {dt} | {desc}"
+                        
+                        with st.expander(title):
+                            st.write(f"**ID:** `{b.id}`")
+                            st.write(f"**Status:** `{b.status.upper()}`")
+                            st.write(f"**Utworzono:** {datetime.fromtimestamp(b.created_at).strftime('%Y-%m-%d %H:%M:%S')}")
+                            
                             if b.status == "completed":
-                                if st.button("📥 Pobierz wyniki", key=b.id):
-                                    results = bm.retrieve_results(b.id)
-                                    st.json(results[:3]) # Podgląd
-                                    st.download_button("Pobierz JSONL", str(results), file_name=f"results_{b.id}.json")
+                                st.success("Zadanie ukończone pomyślnie!")
+                                if st.button("📥 Pobierz i podejrzyj wyniki", key=f"dl_{b.id}", use_container_width=True):
+                                    with st.spinner("Pobieranie wyników..."):
+                                        results = bm.retrieve_results(b.id)
+                                        st.json(results[:2]) # Podgląd pierwszych 2
+                                        st.download_button(
+                                            "💾 Zapisz plik JSONL", 
+                                            json.dumps(results, indent=2, ensure_ascii=False), 
+                                            file_name=f"batch_results_{b.id}.json",
+                                            use_container_width=True
+                                        )
+                            elif b.status == "failed":
+                                st.error(f"Zadanie nie powiodło się.")
+                                if b.errors:
+                                    st.write(b.errors)
                             elif b.status in ["in_progress", "validating"]:
-                                st.spinner("Przetwarzanie...")
+                                st.info("Zadanie jest w trakcie przetwarzania przez OpenAI...")
                 except Exception as e:
-                    st.error(f"Błąd pobierania listy: {e}")
+                    st.error(f"Nie udało się pobrać listy: {e}")
 
     # --- Logi na dole strony (w expander) ---
     with st.expander("📋 Logi systemowe", expanded=False):
