@@ -1,21 +1,20 @@
-from typing import List, Optional
 from pydantic import BaseModel, Field
+from typing import List, Optional
 
-class ToolInfo(BaseModel):
-    """Informacje o narzędziu znalezionym w tekście."""
+class KeyConcept(BaseModel):
+    term: str = Field(..., description="Termin lub pojęcie")
+    definition: str = Field(..., description="Definicja lub wyjaśnienie")
+
+class Tool(BaseModel):
     name: str = Field(..., description="Nazwa narzędzia")
-    description: str = Field(..., description="Opis narzędzia")
-    url: Optional[str] = Field(None, description="URL narzędzia, jeśli dostępny")
-
-class Concept(BaseModel):
-    """Kluczowe pojęcie i jego definicja."""
-    term: str = Field(..., description="Nazwa pojęcia")
-    definition: str = Field(..., description="Definicja pojęcia")
+    description: str = Field(..., description="Opis zastosowania")
 
 class KnowledgeGraph(BaseModel):
-    """Struktura wiedzy wyekstrahowana z tekstu."""
-    topics: List[str] = Field(..., description="Lista głównych tematów")
-    tools: List[ToolInfo] = Field(..., description="Lista narzędzi wspomnianych w tekście")
-    key_concepts: List[Concept] = Field(..., description="Kluczowe pojęcia i definicje")
-    tips: List[str] = Field(..., description="Praktyczne wskazówki")
-    time_range: Optional[str] = Field(default=None, description="Zakres czasowy lub indeks fragmentu (np. Part 1)")
+    topics: List[str] = Field(description="Główne tematy poruszone w fragmencie")
+    tools: List[Tool] = Field(description="Wymienione narzędzia i ich zastosowanie")
+    key_concepts: List[KeyConcept] = Field(description="Kluczowe pojęcia i definicje")
+    tips: List[str] = Field(description="Praktyczne porady i wskazówki")
+    
+    # ZMIANA: Dodajemy time_range z wartością domyślną None.
+    # Dzięki temu stare pliki JSON (bez tego pola) nadal będą działać.
+    time_range: Optional[str] = Field(default=None, description="Znacznik czasowy (np. 01:04) lub indeks fragmentu")
