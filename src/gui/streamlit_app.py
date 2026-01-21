@@ -733,39 +733,47 @@ def main():
             
             with b_col1:
                 st.subheader("📤 Nowe zadanie")
-                batch_files = st.multiselect(
-                    "Wybierz transkrypcje (.txt) do analizy zbiorczej:",
-                    glob.glob(os.path.join(DATA_OUTPUT, "*.txt")),
-                    format_func=lambda x: os.path.basename(x)
-                )
                 
-                if st.button("🚀 Uruchom Batch", type="primary", disabled=not batch_files):
-                    # Logic to create batch
-                    all_reqs = []
-                    for f_path in batch_files:
-                        with open(f_path, "r", encoding="utf-8") as f:
-                            text = f.read()
-                        
-                        # Tutaj tworzymy uproszczone zapytanie do batcha
-                        # (Wersja demo: Ekstrakcja wiedzy)
-                        from src.utils.config import MODEL_EXTRACTOR_OPENAI
-                        req = {
-                            "custom_id": os.path.basename(f_path),
-                            "method": "POST",
-                            "url": "/v1/chat/completions",
-                            "body": {
-                                "model": MODEL_EXTRACTOR_OPENAI,
-                                "messages": [
-                                    {"role": "system", "content": "Jesteś analitykiem. Wyciągnij kluczowe fakty z tekstu."},
-                                    {"role": "user", "content": text[:10000]} # Ograniczenie dla bezpieczeństwa
-                                ]
+                available_files = glob.glob(os.path.join(DATA_OUTPUT, "*.txt"))
+                
+                # Przycisk przeniesiony na górę dla lepszej widoczności
+                if st.button("🚀 Uruchom Przetwarzanie Batch", type="primary", use_container_width=True):
+                    if not st.session_state.get('batch_files_selection'):
+                        st.error("Proszę najpierw wybrać pliki z listy poniżej!")
+                    else:
+                        batch_files = st.session_state['batch_files_selection']
+                        # Logic to create batch
+                        all_reqs = []
+                        for f_path in batch_files:
+                            with open(f_path, "r", encoding="utf-8") as f:
+                                text = f.read()
+                            
+                            from src.utils.config import MODEL_EXTRACTOR_OPENAI
+                            req = {
+                                "custom_id": os.path.basename(f_path),
+                                "method": "POST",
+                                "url": "/v1/chat/completions",
+                                "body": {
+                                    "model": MODEL_EXTRACTOR_OPENAI,
+                                    "messages": [
+                                        {"role": "system", "content": "Jesteś analitykiem. Wyciągnij kluczowe fakty z tekstu."},
+                                        {"role": "user", "content": text[:10000]} 
+                                    ]
+                                }
                             }
-                        }
-                        all_reqs.append(req)
-                    
-                    batch_file_path = bm.create_batch_file(all_reqs, f"batch_{int(time.time())}.jsonl")
-                    batch_id = bm.upload_and_submit(batch_file_path, f"Analiza {len(batch_files)} plików")
-                    st.success(f"Wysłano! ID: {batch_id}")
+                            all_reqs.append(req)
+                        
+                        batch_file_path = bm.create_batch_file(all_reqs, f"batch_{int(time.time())}.jsonl")
+                        batch_id = bm.upload_and_submit(batch_file_path, f"Analiza {len(batch_files)} plików")
+                        st.success(f"Wysłano zadanie! ID: {batch_id}")
+                        st.balloons()
+
+                st.session_state['batch_files_selection'] = st.multiselect(
+                    "Wybierz transkrypcje (.txt) do analizy zbiorczej:",
+                    available_files,
+                    format_func=lambda x: os.path.basename(x),
+                    key="batch_files_selector"
+                )
             
             with b_col2:
                 st.subheader("🕒 Aktywne zadania")
