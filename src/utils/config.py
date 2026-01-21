@@ -13,7 +13,7 @@ COMPUTE_TYPE = "float16" if DEVICE == "cuda" else "int8"
 
 # Konfiguracja Whisper
 WHISPER_MODELS = ["medium", "large-v3"]
-DEFAULT_MODEL_SIZE = "medium"
+DEFAULT_MODEL_SIZE = "large-v3"
 WHISPER_LANGUAGES = {
     "Polski": "pl",
     "Angielski": "en",
