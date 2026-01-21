@@ -37,12 +37,18 @@ def test_writer(knowledge_data):
     print(markdown_output[:200])
     
     # Check for Obsidian features
-    assert "---" in markdown_output  # YAML
-    assert "tags:" in markdown_output # YAML tags
-    assert "[[" in markdown_output # Wikilinks
-    assert "## Indeks Źródłowy" in markdown_output
-    
-    print("\nWriter test passed!")
+    try:
+        assert "---" in markdown_output  # YAML
+        assert "tags:" in markdown_output # YAML tags
+        assert "[[" in markdown_output # Wikilinks
+        assert "## 📍 Indeks Źródłowy" in markdown_output # Adjusted name
+        print("\nWriter test passed!")
+    except AssertionError as e:
+        print(f"\n❌ Header Check: {'---' in markdown_output}")
+        print(f"❌ Tags Check: {'tags:' in markdown_output}")
+        print(f"❌ Wikilinks Check: {'[[' in markdown_output}")
+        print(f"❌ Index Check: {'## 📍 Indeks Źródłowy' in markdown_output}")
+        raise e
 
 if __name__ == "__main__":
     try:
@@ -51,4 +57,6 @@ if __name__ == "__main__":
         print("\n✅ All tests passed successfully!")
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
