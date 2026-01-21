@@ -197,6 +197,16 @@ def main():
     # --- SIDEBAR: KONFIGURACJA GŁÓWNA ---
     with st.sidebar:
         st.header("⚙️ Konfiguracja")
+
+        # 0. Status Sprzętowy
+        import torch
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+            vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            st.success(f"💻 GPU: {gpu_name} ({vram_gb:.1f} GB)", icon="🚀")
+            st.caption("✨ Optymalizacja pod model `large-v3` aktywna.")
+        else:
+            st.warning("💻 CPU Mode — będzie wolno!", icon="⚠️")
         
         # 1. Model Whisper
         st.subheader("🎙️ Model Whisper")
@@ -216,7 +226,7 @@ def main():
             options=WHISPER_MODELS,
             index=WHISPER_MODELS.index(DEFAULT_MODEL_SIZE),
             format_func=lambda x: model_descriptions.get(x, x),
-            help="medium: dobry kompromis szybkość/jakość. large-v3: najlepsza dokładność dla polskiego."
+            help="Optymalny wybór dla RTX 3060: large-v3. Oferuje najwyższą jakość transkrypcji (identyczną z płatnymi API)."
         )
 
         st.divider()
@@ -441,7 +451,7 @@ def main():
         # =====================================================
         st.subheader("📂 Krok 1: Wybierz źródło danych")
 
-        json_files = glob.glob(os.path.join(DATA_PROCESSED, "*.json"))
+        json_files = glob.glob(os.path.join(DATA_PROCESSED, "*_kb.json"))
         json_files.sort(key=os.path.getmtime, reverse=True)
 
         if not json_files:
@@ -779,9 +789,22 @@ def main():
                             "url": "/v1/chat/completions",
                             "body": {
                                 "model": MODEL_EXTRACTOR_OPENAI,
+                                "response_format": { "type": "json_object" },
                                 "messages": [
-                                    {"role": "system", "content": "Jesteś analitykiem. Wyciągnij kluczowe fakty z tekstu."},
-                                    {"role": "user", "content": text[:15000]} 
+                                    {
+                                        "role": "system", 
+                                        "content": (
+                                            "Jesteś analitykiem wiedzy. Zwróć wynik WYŁĄCZNIE w formacie JSON zgodnym ze schematem.\n"
+                                            "Struktura JSON:\n"
+                                            "{\n"
+                                            "  \"topics\": [\"temat1\", \"temat2\"],\n"
+                                            "  \"tools\": [{\"name\": \"nazwa\", \"description\": \"opis\"}],\n"
+                                            "  \"key_concepts\": [{\"term\": \"pojęcie\", \"definition\": \"wyjaśnienie\"}],\n"
+                                            "  \"tips\": [\"wskazówka1\"]\n"
+                                            "}"
+                                        )
+                                    },
+                                    {"role": "user", "content": f"Wyekstrahuj wiedzę z poniższego tekstu i zwróć ją jako JSON:\n\n{text[:15000]}"} 
                                 ]
                             }
                         }
@@ -839,6 +862,17 @@ def main():
                                             file_name=f"batch_results_{b.id}.json",
                                             use_container_width=True
                                         )
+                                        
+                                        if st.button("📊 Importuj do Laboratorium", key=f"imp_{b.id}", type="primary", use_container_width=True):
+                                            imported = bm.import_batch_to_lab(results)
+                                            if imported:
+                                                st.success(f"✅ Zaimportowano {len(imported)} plików do Laboratorium!")
+                                                st.session_state['last_extraction_json'] = os.path.join(DATA_PROCESSED, imported[-1])
+                                                if st.button("🚀 Przejdź do Laboratorium teraz"):
+                                                    st.session_state['go_to_lab'] = True
+                                                    st.rerun()
+                                            else:
+                                                st.error("Błąd podczas importu danych.")
                             elif b.status == "failed":
                                 st.error(f"Zadanie nie powiodło się.")
                                 if b.errors:
