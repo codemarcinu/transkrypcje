@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Wczytaj zmienne środowiskowe z .env
+load_dotenv()
 
 # Konfiguracja modeli
 import torch

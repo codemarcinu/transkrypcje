@@ -10,3 +10,4 @@ tqdm
 colorama
 langchain-text-splitters
 instructor
+python-dotenv

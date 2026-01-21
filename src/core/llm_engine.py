@@ -58,16 +58,18 @@ class LLMEngine:
     """Klasa silnika LLM wspierająca ustrukturyzowane i zwykłe generowanie (Ollama & OpenAI)."""
     def __init__(self, model_type: str, provider: str = None):
         from src.utils.config import (
-            MODEL_EXTRACTOR, MODEL_WRITER, 
+            MODEL_EXTRACTOR_OLLAMA, MODEL_WRITER_OLLAMA,
+            MODEL_EXTRACTOR_OPENAI, MODEL_WRITER_OPENAI,
             OLLAMA_URL, LLM_PROVIDER, OPENAI_API_KEY
         )
         import instructor
         from openai import OpenAI
         
         self.provider = provider or LLM_PROVIDER
-        self.model = MODEL_EXTRACTOR if model_type == "extractor" else MODEL_WRITER
         
+        # dynamiczny wybór modelu na podstawie providera
         if self.provider == "openai":
+            self.model = MODEL_EXTRACTOR_OPENAI if model_type == "extractor" else MODEL_WRITER_OPENAI
             self.raw_client = OpenAI(api_key=OPENAI_API_KEY)
             self.client = instructor.from_openai(
                 self.raw_client,
@@ -75,6 +77,7 @@ class LLMEngine:
             )
         else:
             # Domyślnie Ollama
+            self.model = MODEL_EXTRACTOR_OLLAMA if model_type == "extractor" else MODEL_WRITER_OLLAMA
             self.raw_client = OpenAI(
                 base_url=f"{OLLAMA_URL}/v1",
                 api_key="ollama",
