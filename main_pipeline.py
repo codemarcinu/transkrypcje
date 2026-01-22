@@ -13,6 +13,7 @@ from src.core.transcriber import Transcriber
 from src.core.gpu_manager import clear_gpu_memory
 from src.agents.extractor import KnowledgeExtractor
 from src.agents.writer import ReportWriter
+from src.agents.tagger import TaggerAgent
 from src.core.llm_engine import unload_model
 
 
@@ -72,44 +73,47 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
     
     print(f"\n🕵️ [KROK 2] Ekstrakcja wiedzy (Model: {MODEL_EXTRACTOR}, num_ctx: 4096)...")
     
-    extractor = KnowledgeExtractor()
-    total_chunks = len(chunks)
-    for i, chunk in enumerate(tqdm(chunks)):
-        # Oznaczanie fragmentu (Part X (Y%))
-        progress_pct = int(((i + 1) / total_chunks) * 100)
-        time_tag = f"Part {i+1} ({progress_pct}%)"
-        
-        graph = extractor.extract_knowledge(chunk, chunk_id=time_tag)
-        
-        # Wykrywanie cichego błędu
-        is_empty_graph = not any([graph.topics, graph.tools, graph.key_concepts, graph.tips])
-        
-        if is_empty_graph:
-            if len(chunk) > 100:
-                failed_chunks += 1
-                print(f"\n⚠️ [OSTRZEŻENIE] Fragment {time_tag} zwrócił puste dane.")
-        
-        stats["tools"] += len(graph.tools)
-        stats["concepts"] += len(graph.key_concepts)
-        stats["topics"] += len(graph.topics)
-        stats["tips"] += len(graph.tips)
-        
-        knowledge_base.append(graph.model_dump())
-        
-        # Backup co 5 fragmentów
-        if i % 5 == 0:
-            os.makedirs(DATA_PROCESSED, exist_ok=True)
-            with open(os.path.join(DATA_PROCESSED, "knowledge_backup.json"), 'w', encoding='utf-8') as f:
-                json.dump(knowledge_base, f, ensure_ascii=False, indent=2)
+    try:
+        extractor = KnowledgeExtractor()
+        total_chunks = len(chunks)
+        for i, chunk in enumerate(tqdm(chunks)):
+            # Oznaczanie fragmentu (Part X (Y%))
+            progress_pct = int(((i + 1) / total_chunks) * 100)
+            time_tag = f"Part {i+1} ({progress_pct}%)"
+            
+            graph = extractor.extract_knowledge(chunk, chunk_id=time_tag)
+            
+            # Wykrywanie cichego błędu
+            is_empty_graph = not any([graph.topics, graph.tools, graph.key_concepts, graph.tips])
+            
+            if is_empty_graph:
+                if len(chunk) > 100:
+                    failed_chunks += 1
+                    print(f"\n⚠️ [OSTRZEŻENIE] Fragment {time_tag} zwrócił puste dane.")
+            
+            stats["tools"] += len(graph.tools)
+            stats["concepts"] += len(graph.key_concepts)
+            stats["topics"] += len(graph.topics)
+            stats["tips"] += len(graph.tips)
+            
+            knowledge_base.append(graph.model_dump())
+            
+            # Backup co 5 fragmentów
+            if i % 5 == 0:
+                os.makedirs(DATA_PROCESSED, exist_ok=True)
+                with open(os.path.join(DATA_PROCESSED, "knowledge_backup.json"), 'w', encoding='utf-8') as f:
+                    json.dump(knowledge_base, f, ensure_ascii=False, indent=2)
 
-    # Raport końcowy ekstrakcji
-    print(f"\n📊 RAPORT EKSTRAKCJI:")
-    print(f"   - Przetworzono: {len(chunks)} fragmentów")
-    print(f"   - Znaleziono narzędzi: {stats['tools']}")
-    print(f"   - Zdefiniowano pojęć: {stats['concepts']}")
-    print(f"   - Wykryto błędów: {failed_chunks}")
-    if failed_chunks > 0:
-        print(f"   🚨 UWAGA: Brakuje {failed_chunks} fragmentów wiedzy.")
+        # Raport końcowy ekstrakcji
+        print(f"\n📊 RAPORT EKSTRAKCJI:")
+        print(f"   - Przetworzono: {len(chunks)} fragmentów")
+        print(f"   - Znaleziono narzędzi: {stats['tools']}")
+        print(f"   - Zdefiniowano pojęć: {stats['concepts']}")
+        print(f"   - Wykryto błędów: {failed_chunks}")
+        if failed_chunks > 0:
+            print(f"   🚨 UWAGA: Brakuje {failed_chunks} fragmentów wiedzy.")
+    finally:
+        unload_model(MODEL_EXTRACTOR)
 
     # Zapis bazy wiedzy
     kb_name = os.path.basename(txt_path)
@@ -126,25 +130,30 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
         return
 
     print(f"\n✍️ [KROK 3] Pisanie treści (Model: {MODEL_WRITER})...")
-    writer = ReportWriter()
-    
-    # Generujemy treść (bez tagów na razie)
-    content_only = writer.generate_chapter(topic, knowledge_base, mode="deep_dive", tags=[])
-    
-    # --- CZYSZCZENIE VRAM po Pisarzu ---
-    print("\n🧹 [CZYSZCZENIE] Zwalnianie VRAM po Bieliku...")
-    from src.core.llm_engine import unload_model
-    unload_model(MODEL_WRITER)
+    content_only = ""
+    try:
+        writer = ReportWriter()
+        # Generujemy treść (bez tagów na razie)
+        content_only = writer.generate_chapter(topic, knowledge_base, mode="deep_dive", tags=[])
+    except Exception as e:
+        print(f"❌ Błąd podczas generowania treści: {e}")
+        content_only = f"Błąd generowania treści: {e}"
+    finally:
+        print("\n🧹 [CZYSZCZENIE] Zwalnianie VRAM po Bieliku...")
+        unload_model(MODEL_WRITER)
     
     # 5. Tagowanie (Nowy Krok)
-    print(f"\n🏷️ [KROK 4] Generowanie tagów (Model: Qwen)...")
-    from src.agents.tagger import TaggerAgent
-    tagger = TaggerAgent()
-    tags = tagger.generate_tags(content_only)
-    print(f"✅ Wygenerowano tagi: {', '.join(tags)}")
-    
-    # --- CZYSZCZENIE VRAM po Taggerze ---
-    unload_model("qwen2.5:7b") # Zakładając że to extractor
+    print(f"\n🏷️ [KROK 4] Generowanie tagów (Model: {MODEL_TAGGER})...")
+    tags = []
+    try:
+        tagger = TaggerAgent()
+        tags = tagger.generate_tags(content_only)
+        print(f"✅ Wygenerowano tagi: {', '.join(tags)}")
+    except Exception as e:
+        print(f"❌ Błąd podczas generowania tagów: {e}")
+        tags = ["error_tagging"]
+    finally:
+        unload_model(MODEL_TAGGER)
     
     # 6. Składanie finalne
     # Ponownie używamy ReportWriter tylko do złożenia YAML (bez ponownego generowania treści)

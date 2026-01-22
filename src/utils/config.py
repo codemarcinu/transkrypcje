@@ -30,19 +30,23 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 # Modele Ollama (Zmieniono na 7b dla RTX 3060)
 MODEL_EXTRACTOR_OLLAMA = "qwen2.5:7b"
 MODEL_WRITER_OLLAMA = "bielik-writer"
+MODEL_TAGGER_OLLAMA = "qwen2.5:7b"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
 # Modele OpenAI
 MODEL_EXTRACTOR_OPENAI = "gpt-4o-mini"
 MODEL_WRITER_OPENAI = "gpt-4o-mini" # Można zmienić na gpt-4o dla lepszej jakości
+MODEL_TAGGER_OPENAI = "gpt-4o-mini"
 
 # Wybrany model (zależnie od providera)
 if LLM_PROVIDER == "openai":
     MODEL_EXTRACTOR = MODEL_EXTRACTOR_OPENAI
     MODEL_WRITER = MODEL_WRITER_OPENAI
+    MODEL_TAGGER = MODEL_TAGGER_OPENAI
 else:
     MODEL_EXTRACTOR = MODEL_EXTRACTOR_OLLAMA
     MODEL_WRITER = MODEL_WRITER_OLLAMA
+    MODEL_TAGGER = MODEL_TAGGER_OLLAMA
 
 DEFAULT_OLLAMA_MODEL = MODEL_EXTRACTOR
 
