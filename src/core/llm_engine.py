@@ -81,8 +81,8 @@ class LLMEngine:
         # Parametry specyficzne dla providera
         extra_args = {}
         if self.provider == "ollama" or self.provider == "local":
-             # Naprawa: Ollama czasami potrzebuje wskazania kontekstu w extra_body
-             extra_args["extra_body"] = {"options": {"num_ctx": 8192}}
+             # Zmiana: Zmniejszono num_ctx z 8192 do 4096 dla RTX 3060 (stabilność VRAM)
+             extra_args["extra_body"] = {"options": {"num_ctx": 4096}}
 
         return self.client.chat.completions.create(
             model=self.model,

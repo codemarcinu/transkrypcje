@@ -62,7 +62,7 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
         "tips": 0
     }
     
-    print(f"\n🕵️ Ekstrakcja wiedzy (Model: {MODEL_EXTRACTOR})...")
+    print(f"\n🕵️ Ekstrakcja wiedzy (Model: {MODEL_EXTRACTOR}, num_ctx: 4096)...")
     
     extractor = KnowledgeExtractor()
     total_chunks = len(chunks)

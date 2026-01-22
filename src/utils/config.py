@@ -27,8 +27,8 @@ WHISPER_LANGUAGES = {
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama") # "ollama" lub "openai"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
-# Modele Ollama
-MODEL_EXTRACTOR_OLLAMA = "qwen2.5:14b"
+# Modele Ollama (Zmieniono na 7b dla RTX 3060)
+MODEL_EXTRACTOR_OLLAMA = "qwen2.5:7b"
 MODEL_WRITER_OLLAMA = "bielik-writer"
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
