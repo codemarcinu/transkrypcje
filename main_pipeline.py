@@ -11,6 +11,9 @@ from src.core.text_cleaner import clean_transcript
 from src.utils.text_processing import smart_split_text
 from src.core.transcriber import Transcriber
 from src.core.gpu_manager import clear_gpu_memory
+from src.agents.extractor import KnowledgeExtractor
+from src.agents.writer import ReportWriter
+from src.core.llm_engine import unload_model
 
 
 def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "Narzędzia OSINT, Krypto i Techniki Śledcze", whisper_model: str = "large-v3"):
@@ -122,11 +125,38 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
         print("❌ Błąd krytyczny: Brak danych do napisania podręcznika.")
         return
 
-    print(f"\n✍️ [KROK 3] Pisanie podręcznika (Model: {MODEL_WRITER})...")
+    print(f"\n✍️ [KROK 3] Pisanie treści (Model: {MODEL_WRITER})...")
     writer = ReportWriter()
-    chapter_content = writer.generate_chapter(topic, knowledge_base)
     
-    final_content = f"# Podręcznik: {topic}\n\n{chapter_content}"
+    # Generujemy treść (bez tagów na razie)
+    content_only = writer.generate_chapter(topic, knowledge_base, mode="deep_dive", tags=[])
+    
+    # --- CZYSZCZENIE VRAM po Pisarzu ---
+    print("\n🧹 [CZYSZCZENIE] Zwalnianie VRAM po Bieliku...")
+    from src.core.llm_engine import unload_model
+    unload_model(MODEL_WRITER)
+    
+    # 5. Tagowanie (Nowy Krok)
+    print(f"\n🏷️ [KROK 4] Generowanie tagów (Model: Qwen)...")
+    from src.agents.tagger import TaggerAgent
+    tagger = TaggerAgent()
+    tags = tagger.generate_tags(content_only)
+    print(f"✅ Wygenerowano tagi: {', '.join(tags)}")
+    
+    # --- CZYSZCZENIE VRAM po Taggerze ---
+    unload_model("qwen2.5:7b") # Zakładając że to extractor
+    
+    # 6. Składanie finalne
+    # Ponownie używamy ReportWriter tylko do złożenia YAML (bez ponownego generowania treści)
+    # Tu mały hack: ReportWriter.generate_chapter generuje treść...
+    # Musimy zaktualizować frontmatter w content_only lub dodać metodę do ReportWriter.
+    
+    # Poprawka: Zaktualizujmy frontmatter mechanicznie lub dodajmy metodę do writer.py
+    # Zróbmy to porządnie w ReportWriter.
+    
+    final_output = content_only.replace("tags: []", f"tags: {tags}")
+    
+    final_content = f"# Podręcznik: {topic}\n\n{final_output}"
     
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f"Podrecznik_{filename.split('.')[0]}.md")

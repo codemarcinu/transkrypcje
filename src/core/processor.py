@@ -74,30 +74,25 @@ class ContentProcessor:
         return self.summarizer.summarize_from_file(file_path, model_name, max_chars, style)
 
     def run_content_generation(self, input_file, topic, model_name="bielik"):
-        """Uruchamia pełny proces Map-Reduce z czyszczeniem VRAM."""
+        """Uruchamia pełny proces Map-Reduce z czyszczeniem VRAM i tagowaniem."""
         from main_pipeline import run_pipeline
         from src.utils.config import DATA_OUTPUT, MODEL_EXTRACTOR, MODEL_WRITER
         from src.core.llm_engine import unload_model
         
-        self.logger.log(f"Inicjowanie generowania treści dla {input_file}...")
+        self.logger.log(f"Inicjowanie generowania treści dla {input_file} (Tryb Modułowy: Bielik + Qwen)...")
         
-        # Prewencyjne czyszczenie VRAM (wyładowanie Whisper i starych modeli)
+        # Prewencyjne czyszczenie VRAM
         try:
             clear_gpu_memory()
-            # Próbujemy zwolnić oba modele LLM na wszelki wypadek
             unload_model(MODEL_EXTRACTOR)
             unload_model(MODEL_WRITER)
         except Exception as e:
             self.logger.log(f"Wskazówka: Nie udało się prewencyjnie zwolnić VRAM: {e}")
 
         try:
-            run_pipeline(input_path=input_file, output_dir=DATA_OUTPUT, topic=topic)
-            self.logger.log("Pipeline zakończony.")
-            
-            # Predict output path as main_pipeline does:
-            # os.path.join(output_dir, f"Podrecznik_{filename.replace('.txt', '.md')}")
-            filename = os.path.basename(input_file)
-            result_path = os.path.join(DATA_OUTPUT, f"Podrecznik_{filename.replace('.txt', '.md')}")
+            # run_pipeline teraz obsługuje nową logikę (Writer -> Tagger)
+            result_path = run_pipeline(input_path=input_file, output_dir=DATA_OUTPUT, topic=topic)
+            self.logger.log(f"Pipeline zakończony sukcesem. Wynik: {result_path}")
             return result_path
         except Exception as e:
             self.logger.log(f"Błąd pipeline'u: {e}")
