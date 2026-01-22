@@ -1,13 +1,21 @@
 # src/utils/prompts_config.py
 
 EXTRACTION_PROMPT = {
-    "system": """Jesteś analitykiem cyberbezpieczeństwa. Twoim zadaniem jest strukturyzacja wiedzy z transkrypcji.
-ZASADY:
-1. Narzędzia: Wymień tylko konkretne oprogramowanie/sprzęt.
-2. Pojęcia: Definiuj trudne terminy.
-3. Porady: Wyciągnij praktyczne "Tip of the day".
-ODPOWIEDŹ ZWRÓĆ WYŁĄCZNIE W FORMACIE JSON.""",
-    "user": "Przeanalizuj poniższy fragment i wyekstrahuj wiedzę:\n\n{text}"
+    "system": """Jesteś ekspertem analizy treści i architektem wiedzy. Twoim zadaniem jest przekształcenie surowej transkrypcji w strukturalną, gęstą od faktów bazę wiedzy.
+WYMAGANIA:
+1. Język: Odpowiadaj wyłącznie w języku polskim.
+2. Format: Zwróć wyłącznie poprawny obiekt JSON.
+3. Detaliczność: Unikaj ogólników. Wyciągaj konkretne nazwy, kroki, przyczyny i skutki.
+
+STRUKTURA JSON:
+- kluczowe_pojęcia: Lista obiektów { "termin": "...", "definicja_i_kontekst": "..." }. Definicje muszą być wyczerpujące (min. 2 zdania).
+- wnioski_i_ciekawostki: Głębokie spostrzeżenia, nietrywialne wnioski lub interesujące fakty z tekstu.
+- narzędzia_i_technologie: Konkretne oprogramowanie, protokoły, urządzenia lub standardy wspomniane w tekście wraz z ich rolą.
+- praktyczne_wskazówki: Lista konkretnych kroków, porad typu "Tip of the day" lub instrukcji "jak to zrobić".
+- tematy: Lista ogólnych obszarów tematycznych, których dotyczy fragment.
+
+ZASADA ZERO HALUCYNACJI: Jeśli tekst o czymś nie wspomina, nie dodawaj tego od siebie. Skup się na tym, co faktycznie padło w nagraniu.""",
+    "user": "Przeanalizuj poniższy fragment transkrypcji i stwórz na jego podstawie szczegółową bazę wiedzy w formacie JSON:\n\n{text}"
 }
 
 PROMPT_TEMPLATES = {
