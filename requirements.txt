@@ -17,7 +17,7 @@ openai==2.15.0
 yt-dlp==2025.12.8
 
 # === GUI & User Experience ===
-streamlit==1.53.0
+gradio>=4.0.0
 watchdog==6.0.0
 tqdm==4.67.1
 colorama==0.4.6
