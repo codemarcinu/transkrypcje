@@ -604,22 +604,26 @@ def run_batch_wizard(
             # Czyszczenie GPU
             clear_gpu_memory()
 
-            # Budowanie requestu
-            custom_id = sanitize_filename(source_title)
-            batch_request = build_batch_request(
-                custom_id=custom_id,
-                transcript_text=cleaned_text,
-                model=MODEL_EXTRACTOR_OPENAI
-            )
+            # Podział na chunki i budowanie requestów
+            base_custom_id = sanitize_filename(source_title)
+            chunks = smart_split_text(cleaned_text, chunk_size=CHUNK_SIZE, chunk_overlap=OVERLAP)
+            
+            for chunk_index, chunk_content in enumerate(chunks):
+                chunk_custom_id = f"{base_custom_id}__part_{chunk_index}"
+                batch_request = build_batch_request(
+                    custom_id=chunk_custom_id,
+                    transcript_text=chunk_content,
+                    model=MODEL_EXTRACTOR_OPENAI
+                )
 
-            successful_requests.append({
-                "request": batch_request,
-                "source_url": url,
-                "source_title": source_title,
-                "transcript_file": output_file
-            })
+                successful_requests.append({
+                    "request": batch_request,
+                    "source_url": url,
+                    "source_title": source_title,
+                    "transcript_file": output_file
+                })
 
-            log(f"Przygotowano request (custom_id: {custom_id})")
+            log(f"Przygotowano {len(chunks)} fragmentów dla: {base_custom_id}")
 
             # Cleanup audio
             try:
@@ -785,12 +789,18 @@ def submit_batch_files(selected_files: List[str]) -> str:
             with open(f_path, "r", encoding="utf-8") as f:
                 text = f.read()
 
-            req = build_batch_request(
-                custom_id=os.path.basename(f_path),
-                transcript_text=text[:15000],
-                model=MODEL_EXTRACTOR_OPENAI
-            )
-            all_reqs.append(req)
+            base_custom_id = os.path.basename(f_path)
+            # Używamy smart_split_text zamiast prostego text[:15000]
+            chunks = smart_split_text(text, chunk_size=CHUNK_SIZE, chunk_overlap=OVERLAP)
+            
+            for chunk_index, chunk_content in enumerate(chunks):
+                chunk_custom_id = f"{base_custom_id}__part_{chunk_index}"
+                req = build_batch_request(
+                    custom_id=chunk_custom_id,
+                    transcript_text=chunk_content,
+                    model=MODEL_EXTRACTOR_OPENAI
+                )
+                all_reqs.append(req)
 
         bm = BatchManager()
         import time

@@ -66,42 +66,60 @@ class BatchManager:
     def import_batch_to_lab(self, results: List[Dict]) -> List[str]:
         """
         Przekształca wyniki Batcha w pliki _kb.json gotowe dla Laboratorium.
+        Teraz obsługuje scalanie chunków (custom_id w formacie 'plik__part_N').
         """
-        imported_files = []
+        from collections import defaultdict
+        
+        # Grupowanie wyników według nazwy bazowej pliku
+        grouped_results = defaultdict(list)
+        
         for res in results:
             custom_id = res.get("custom_id", f"unknown_{int(time.time())}")
-            # custom_id to zazwyczaj nazwa pliku wejściowego (np. plik.txt)
-            base_name = os.path.splitext(custom_id)[0]
-            kb_filename = f"{base_name}_kb.json"
-            kb_path = os.path.join(DATA_PROCESSED, kb_filename)
+            
+            # Obsługa formatu chunków: nazwa__part_0
+            if "__part_" in custom_id:
+                base_name = custom_id.split("__part_")[0]
+            else:
+                base_name = os.path.splitext(custom_id)[0]
             
             try:
                 # Wyciągnięcie treści z odpowiedzi OpenAI
                 content = res["response"]["body"]["choices"][0]["message"]["content"]
                 
-                # Proste czyszczenie markdowna jeśli model go dodał
+                # Proste czyszczenie markdowna
                 if content.startswith("```json"):
                     content = content.replace("```json", "", 1).rsplit("```", 1)[0].strip()
                 elif content.startswith("```"):
                     content = content.replace("```", "", 1).rsplit("```", 1)[0].strip()
                 
-                # Parsowanie treści jako JSON (powinna to być lista obiektów KnowledgeGraph)
-                # UWAGA: Batch zazwyczaj analizuje jeden duży chunk lub cały plik.
-                # Laboratorium oczekuje listy segmentów, więc pakujemy to w listę.
-                parsed_at_source = json.loads(content)
+                parsed_data = json.loads(content)
                 
-                # Jeśli to nie jest lista, opakuj w listę (Laboratorium obsługuje listę segmentów)
-                if not isinstance(parsed_at_source, list):
-                    kb_data = [parsed_at_source]
-                else:
-                    kb_data = parsed_at_source
-                
-                os.makedirs(DATA_PROCESSED, exist_ok=True)
+                # Upewnienie się, że mamy listę segmentów
+                if isinstance(parsed_data, list):
+                    grouped_results[base_name].extend(parsed_data)
+                elif isinstance(parsed_data, dict):
+                    # Jeśli model zwrócił jeden obiekt (np. z listami narzędzi/pojęć)
+                    # to też pakujemy to w listę dla Laboratorium
+                    grouped_results[base_name].append(parsed_data)
+                    
+            except Exception as e:
+                print(f"[BATCH] Błąd parsowania dla {custom_id}: {e}")
+
+        imported_files = []
+        os.makedirs(DATA_PROCESSED, exist_ok=True)
+        
+        for base_name, kb_data in grouped_results.items():
+            kb_filename = f"{base_name}_kb.json"
+            kb_path = os.path.join(DATA_PROCESSED, kb_filename)
+            
+            try:
+                # Jeśli plik już istnieje, wczytaj go i doklej (opcjonalne, ale bezpieczniejsze dla dużych batchy)
+                # Na razie nadpisujemy/tworzymy nowy z całości zebranej w tym batchu
                 with open(kb_path, "w", encoding="utf-8") as f:
                     json.dump(kb_data, f, ensure_ascii=False, indent=2)
                 
                 imported_files.append(kb_filename)
             except Exception as e:
-                print(f"[BATCH] Błąd importu dla {custom_id}: {e}")
+                print(f"[BATCH] Błąd zapisu dla {base_name}: {e}")
                 
         return imported_files

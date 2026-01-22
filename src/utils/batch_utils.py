@@ -40,7 +40,7 @@ def build_batch_request(
                 {"role": "system", "content": EXTRACTION_PROMPT["system"]},
                 {"role": "user", "content": EXTRACTION_PROMPT["user"].format(text=transcript_text)}
             ],
-            "temperature": 0.3,
+            "temperature": 0.0,
             "response_format": {"type": "json_object"}
         }
     }
