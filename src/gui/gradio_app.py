@@ -43,8 +43,31 @@ from src.utils.batch_utils import build_batch_request
 logger = setup_logger()
 
 # =============================================================================
-# SEKCJA 2: KLASY POMOCNICZE
+# SEKCJA 2: KLASY POMOCNICZE I HELPERY
 # =============================================================================
+
+CUSTOM_SETTINGS_FILE = os.path.join(DATA_PROCESSED, "custom_settings.json")
+
+def save_custom_settings(style, system, user):
+    """Zapisuje własne ustawienia do pliku JSON."""
+    try:
+        data = {"style": style, "system": system, "user": user}
+        with open(CUSTOM_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        return "✅ Ustawienia zapisane na stałe"
+    except Exception as e:
+        return f"❌ Błąd zapisu: {e}"
+
+def load_custom_settings():
+    """Wczytuje własne ustawienia z pliku JSON."""
+    if os.path.exists(CUSTOM_SETTINGS_FILE):
+        try:
+            with open(CUSTOM_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("style", "standard"), data.get("system"), data.get("user")
+        except:
+            pass
+    return "standard", None, None
 
 class GradioProgress:
     """Adapter progress callback dla Gradio."""
@@ -286,15 +309,19 @@ def process_local_files(
             if src_path != target_file:
                 shutil.copy2(src_path, target_file)
 
-            # Konwersja do MP3
-            if convert_to_mp3 and not filename.lower().endswith('.mp3'):
+            # Konwersja do MP3 (tylko dla plików audio/video, nie .txt)
+            if convert_to_mp3 and not filename.lower().endswith(('.mp3', '.txt')):
                 progress(file_progress_start + 0.1, desc=f"Konwersja do MP3: {filename}")
                 mp3_path = os.path.join(output_path, os.path.splitext(filename)[0] + ".mp3")
                 target_file = processor.convert_to_mp3(target_file, mp3_path)
 
             # Transkrypcja
             txt_file = None
-            if do_transcribe:
+            if filename.lower().endswith('.txt'):
+                txt_file = target_file
+                last_txt = txt_file
+                logger.log(f"Plik .txt wykryty, pomijam transkrypcję dla {filename}")
+            elif do_transcribe:
                 pct = file_progress_start + 0.2
                 progress(pct, desc=f"Transkrypcja ({model_size}): {filename}")
                 segments, info = processor.transcribe_video(target_file, lang_code, model_size)
@@ -950,8 +977,8 @@ def create_app() -> gr.Blocks:
                             with gr.Column():
                                 gr.Markdown("### Z pliku")
                                 file_upload = gr.File(
-                                    label="Wybierz pliki audio/wideo",
-                                    file_types=[".mp4", ".mp3", ".m4a", ".wav", ".mkv", ".avi"],
+                                    label="Wybierz pliki audio/video lub .txt",
+                                    file_types=[".mp4", ".mp3", ".m4a", ".wav", ".mkv", ".avi", ".txt"],
                                     file_count="multiple"
                                 )
                                 convert_mp3_cb = gr.Checkbox(value=True, label="Konwertuj na MP3", visible=False)
@@ -990,9 +1017,6 @@ def create_app() -> gr.Blocks:
                             )
                             refresh_files_btn = gr.Button("🔄", scale=1, min_width=50)
 
-                        # Przycisk generowania - GŁÓWNA AKCJA - na górze!
-                        generate_btn = gr.Button("▶ Generuj Notatkę", variant="primary", size="lg")
-
                         # Status generowania - WIDOCZNY FEEDBACK
                         generation_status = gr.Markdown("", elem_id="generation-status")
 
@@ -1006,13 +1030,14 @@ def create_app() -> gr.Blocks:
                             )
 
                             # Styl
+                            saved_style, custom_sys_init, custom_usr_init = load_custom_settings()
                             style_radio = gr.Radio(
                                 choices=["standard", "academic", "blog"],
-                                value="standard",
+                                value=saved_style,
                                 label="Styl",
                                 info="standard = przejrzysty | academic = formalny | blog = luźny"
                             )
-                            style_description = gr.Markdown(f"*{style_descriptions['standard']}*")
+                            style_description = gr.Markdown(f"*{style_descriptions[saved_style]}*")
 
                         # Ukryte pola dla zaawansowanych opcji (domyślne wartości)
                         with gr.Row(visible=False):
@@ -1020,8 +1045,8 @@ def create_app() -> gr.Blocks:
                             source_title_input = gr.Textbox(value="")
                             duration_input = gr.Textbox(value="")
                             aliases_input = gr.Textbox(value="")
-                            system_prompt_input = gr.Textbox(value=PROMPT_TEMPLATES["standard"]["system"])
-                            user_prompt_input = gr.Textbox(value=PROMPT_TEMPLATES["standard"]["user"])
+                            system_prompt_input = gr.Textbox(value=custom_sys_init or PROMPT_TEMPLATES["standard"]["system"])
+                            user_prompt_input = gr.Textbox(value=custom_usr_init or PROMPT_TEMPLATES["standard"]["user"])
 
                         # Opcje zaawansowane - głęboko ukryte
                         with gr.Accordion("Opcje zaawansowane", open=False):
@@ -1049,21 +1074,33 @@ def create_app() -> gr.Blocks:
 
                             # Edycja promptów
                             gr.Markdown("**Edycja promptów AI:**")
+                            use_custom_prompts_cb = gr.Checkbox(
+                                label="Użyj własnych promptów i stylu (blokuje nadpisywanie przez style)",
+                                value=bool(custom_sys_init)
+                            )
+                            with gr.Row():
+                                save_settings_btn = gr.Button("💾 Zapisz te ustawienia jako domyślne", variant="secondary")
+                                reset_prompts_btn = gr.Button("Przywróć domyślne dla stylu")
+
                             adv_system_prompt = gr.Textbox(
                                 label="System Prompt",
                                 lines=6,
-                                value=PROMPT_TEMPLATES["standard"]["system"]
+                                value=custom_sys_init or PROMPT_TEMPLATES["standard"]["system"]
                             )
                             adv_user_prompt = gr.Textbox(
                                 label="User Prompt",
                                 lines=4,
-                                value=PROMPT_TEMPLATES["standard"]["user"]
+                                value=custom_usr_init or PROMPT_TEMPLATES["standard"]["user"]
                             )
-                            reset_prompts_btn = gr.Button("Przywróć domyślne prompty")
+
+                            prompt_status = gr.Markdown("")
 
                             # Podgląd surowych danych
                             with gr.Accordion("Podgląd surowych danych (JSON)", open=False):
                                 kb_preview = gr.Code(label="JSON", language="json")
+
+                        # PRZYCISK GENEROWANIA - TERAZ POD USTAWIENIAMI
+                        generate_btn = gr.Button("▶ Generuj Notatkę", variant="primary", size="lg")
 
                         # Wynik - podgląd jako domyślny widok
                         gr.Markdown("### Wygenerowana notatka")
@@ -1076,7 +1113,9 @@ def create_app() -> gr.Blocks:
                                 value="notatka.md",
                                 scale=3
                             )
-                            to_obsidian_btn = gr.Button("💾 Zapisz do Obsidian", variant="primary", size="lg", scale=2)
+                            # Nowy, główny przycisk Zapisz
+                            save_all_btn = gr.Button("💾 Zapisz Notatkę", variant="primary", size="lg", scale=2)
+                            to_obsidian_btn = gr.Button("🏔️ Wyślij do Obsidian", variant="secondary", size="lg", scale=2)
 
                         save_status = gr.Markdown("")
 
@@ -1242,14 +1281,18 @@ def create_app() -> gr.Blocks:
         )
 
         # Tab 2: Aktualizuj opis stylu
-        def update_style_desc(style):
+        def update_style_desc(style, use_custom):
             desc = style_descriptions.get(style, "")
+            if use_custom:
+                # Jeśli używamy własnych promptów, zwracamy tylko opis stylu, zachowując obecne prompty
+                return f"*{desc}*", gr.update(), gr.update()
+            
             template = PROMPT_TEMPLATES.get(style, PROMPT_TEMPLATES["standard"])
             return f"*{desc}*", template["system"], template["user"]
 
         style_radio.change(
             fn=update_style_desc,
-            inputs=[style_radio],
+            inputs=[style_radio, use_custom_prompts_cb],
             outputs=[style_description, adv_system_prompt, adv_user_prompt]
         )
 
@@ -1262,6 +1305,12 @@ def create_app() -> gr.Blocks:
             fn=reset_prompts,
             inputs=[style_radio],
             outputs=[adv_system_prompt, adv_user_prompt]
+        )
+
+        save_settings_btn.click(
+            fn=save_custom_settings,
+            inputs=[style_radio, adv_system_prompt, adv_user_prompt],
+            outputs=[prompt_status]
         )
 
         # Tab 2: Generowanie notatki ze streamingiem
@@ -1347,6 +1396,21 @@ def create_app() -> gr.Blocks:
 
         to_obsidian_btn.click(
             fn=save_obsidian_from_preview,
+            inputs=[preview_output, edit_output, output_filename_input, obsidian_vault_input],
+            outputs=[save_status]
+        )
+
+        # Tab 2: Główny przycisk Zapisz - inteligentny wybór
+        def smart_save(preview_content, edit_content, filename, vault):
+            """Zapisuje do Obsidian jeśli dostępny, w przeciwnym razie lokalnie."""
+            content = edit_content.strip() if edit_content and edit_content.strip() else preview_content
+            if vault and os.path.exists(vault):
+                return save_to_obsidian(content, filename, vault)
+            else:
+                return save_note_locally(content, filename)
+
+        save_all_btn.click(
+            fn=smart_save,
             inputs=[preview_output, edit_output, output_filename_input, obsidian_vault_input],
             outputs=[save_status]
         )
