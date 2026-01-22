@@ -4,6 +4,7 @@ import torch
 from faster_whisper import WhisperModel
 from src.utils.config import DEVICE, COMPUTE_TYPE
 from src.utils.helpers import format_time, format_srt_time, format_vtt_time
+from src.core.gpu_manager import clear_gpu_memory
 
 class Transcriber:
     def __init__(self, logger, stop_event, progress_callback):
@@ -92,10 +93,7 @@ class Transcriber:
 
         # Cleanup memory after consumption
         self.current_model = None
-        import gc
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        clear_gpu_memory()
 
         return output_file, json_file
 

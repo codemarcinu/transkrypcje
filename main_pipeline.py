@@ -1,13 +1,40 @@
 import os
 import json
+import shutil
 from tqdm import tqdm
-from src.utils.config import DATA_RAW, DATA_PROCESSED, DATA_OUTPUT, CHUNK_SIZE, OVERLAP, MODEL_EXTRACTOR, MODEL_WRITER
+from src.utils.config import (
+    DATA_RAW, DATA_PROCESSED, DATA_OUTPUT, CHUNK_SIZE, OVERLAP,
+    MODEL_EXTRACTOR, MODEL_WRITER, OBSIDIAN_VAULT_PATH,
+    OBSIDIAN_EXPORT_ENABLED, OBSIDIAN_SUBFOLDER
+)
 from src.core.text_cleaner import clean_transcript
 from src.utils.text_processing import smart_split_text
 from src.agents.extractor import KnowledgeExtractor
 from src.agents.writer import ReportWriter
 from src.core.llm_engine import unload_model
 from src.utils.validator import verify_url
+
+
+def export_to_obsidian(source_path: str) -> bool:
+    """Kopiuje wygenerowany plik .md do Obsidian Vault."""
+    if not OBSIDIAN_VAULT_PATH:
+        return False
+
+    try:
+        # Tworzenie ścieżki docelowej
+        obsidian_dir = os.path.join(OBSIDIAN_VAULT_PATH, OBSIDIAN_SUBFOLDER)
+        os.makedirs(obsidian_dir, exist_ok=True)
+
+        filename = os.path.basename(source_path)
+        dest_path = os.path.join(obsidian_dir, filename)
+
+        shutil.copy2(source_path, dest_path)
+        print(f"📚 Wyeksportowano do Obsidian: {dest_path}")
+        return True
+    except Exception as e:
+        print(f"⚠️ Nie udało się wyeksportować do Obsidian: {e}")
+        return False
+
 
 def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "Narzędzia OSINT, Krypto i Techniki Śledcze"):
     if not os.path.exists(input_path):
@@ -99,8 +126,12 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
     output_path = os.path.join(output_dir, f"Podrecznik_{filename.replace('.txt', '.md')}")
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(final_content)
-        
+
     print(f"\n🎉 SUKCES! Plik zapisany: {output_path}")
+
+    # Eksport do Obsidian Vault
+    if OBSIDIAN_EXPORT_ENABLED:
+        export_to_obsidian(output_path)
 
 if __name__ == "__main__":
     files = [f for f in os.listdir(DATA_RAW) if f.endswith('.txt')]

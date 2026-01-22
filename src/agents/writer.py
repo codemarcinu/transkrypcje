@@ -38,22 +38,48 @@ class ReportWriter:
         tags_list = [t.lower().replace(" ", "_") for t in list(all_topics)[:10]]
         return context_str, tags_list
 
-    def _build_frontmatter(self, topic_name: str, tags_list: list, mode: str) -> str:
-        """Generuje YAML frontmatter."""
-        return f"""---
-tags: {tags_list}
-topic: "{topic_name}"
-type: training_note
-generator_mode: {mode}
-created: {datetime.now().strftime('%Y-%m-%d %H:%M')}
----
+    def _build_frontmatter(self, topic_name: str, tags_list: list, mode: str,
+                           metadata: dict = None) -> str:
+        """Generuje rozszerzony YAML frontmatter dla Obsidian."""
+        meta = metadata or {}
 
-"""
+        # Podstawowe pola
+        lines = [
+            "---",
+            f"tags: {tags_list}",
+            f'topic: "{topic_name}"',
+        ]
+
+        # Aliasy (opcjonalne)
+        aliases = meta.get('aliases', [])
+        if aliases:
+            lines.append(f"aliases: {aliases}")
+
+        # Źródło (opcjonalne)
+        if meta.get('source_url'):
+            lines.append(f'source_url: "{meta["source_url"]}"')
+        if meta.get('source_title'):
+            lines.append(f'source_title: "{meta["source_title"]}"')
+        if meta.get('duration'):
+            lines.append(f'duration: "{meta["duration"]}"')
+
+        # Metadane systemowe
+        lines.extend([
+            f"type: training_note",
+            f"generator_mode: {mode}",
+            f"created: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"reviewed: false",
+            "---",
+            "",
+            ""
+        ])
+
+        return "\n".join(lines)
 
     def _build_source_index(self, aggregated_data: list) -> str:
-        """Generuje indeks źródłowy."""
+        """Generuje indeks źródłowy z klikalnymi timestampami (Obsidian anchors)."""
         source_index = "\n\n---\n## 📍 Indeks Źródłowy\n| Czas | Tematy |\n|---|---|\n"
-        
+
         if not isinstance(aggregated_data, list):
             return ""
 
@@ -64,24 +90,28 @@ created: {datetime.now().strftime('%Y-%m-%d %H:%M')}
             topics = item.get('topics', [])[:3]
             combined = ", ".join(topics)
             if combined and time_marker:
-                source_index += f"| **{time_marker}** | {combined} |\n"
-        
-        if source_index.count("|") <= 6: # Tylko nagłówek (2 wiersze po 3 rury)
+                # Klikalne anchory w formacie Obsidian [[#anchor|display]]
+                anchor_time = time_marker.replace(":", "-").replace(" ", "")
+                source_index += f"| **[[#{anchor_time}|{time_marker}]]** | {combined} |\n"
+
+        if source_index.count("|") <= 6:  # Tylko nagłówek (2 wiersze po 3 rury)
             return ""
-            
+
         return source_index
 
     def generate_chapter(self, topic_name: str, aggregated_data: list,
                          mode: str = "standard",
                          custom_system_prompt: str = None,
                          custom_user_prompt: str = None,
-                         stream_callback: Optional[Callable[[str], None]] = None) -> str:
+                         stream_callback: Optional[Callable[[str], None]] = None,
+                         metadata: dict = None) -> str:
         """
         Generuje notatkę z opcjonalnym streamingiem.
 
         Args:
             stream_callback: Funkcja wywoływana dla każdego tokena (np. do wyświetlania w GUI).
                              Jeśli None, używa standardowego generowania.
+            metadata: Opcjonalne metadane do YAML frontmatter (source_url, source_title, duration, aliases).
         """
         # 0. Walidacja danych wejściowych
         if not isinstance(aggregated_data, list) or (len(aggregated_data) > 0 and not isinstance(aggregated_data[0], dict)):
@@ -112,7 +142,7 @@ created: {datetime.now().strftime('%Y-%m-%d %H:%M')}
             content_response = self.llm.generate(final_system_prompt, final_user_prompt)
 
         # 4. Składanie dokumentu
-        yaml_header = self._build_frontmatter(topic_name, tags_list, mode)
+        yaml_header = self._build_frontmatter(topic_name, tags_list, mode, metadata)
         source_index = self._build_source_index(aggregated_data)
 
         return yaml_header + content_response + source_index
