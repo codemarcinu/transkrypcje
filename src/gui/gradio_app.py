@@ -70,17 +70,18 @@ def run_analysis(url, file, style, auto_tag):
         yield status_log + "\n" + error_msg, "BŁĄD", "BŁĄD", None
 
 
+# --- THEME DEFINITION ---
+theme = gr.themes.Soft(
+    primary_hue="blue",
+    secondary_hue="slate",
+).set(
+    body_background_fill="#f9fafb",
+    block_background_fill="#ffffff"
+)
+
 # --- GUI DEFINITION ---
 def create_ui():
-    theme = gr.themes.Soft(
-        primary_hue="blue",
-        secondary_hue="slate",
-    ).set(
-        body_background_fill="#f9fafb",
-        block_background_fill="#ffffff"
-    )
-
-    with gr.Blocks(title="Sekurak Transcriber AI", theme=theme) as app:
+    with gr.Blocks() as app:
         
         # Header
         with gr.Row():
@@ -149,8 +150,7 @@ def create_ui():
                     # Główna treść
                     markdown_output = gr.Markdown(
                         label="Treść Notatki",
-                        value="_Tutaj pojawi się wygenerowana notatka..._",
-                        show_copy_button=True
+                        value="_Tutaj pojawi się wygenerowana notatka..._"
                     )
 
                 download_btn = gr.File(label="📂 Pobierz gotowy plik (.md / .json)")
@@ -170,5 +170,6 @@ if __name__ == "__main__":
         server_name="0.0.0.0", 
         server_port=7860, 
         inbrowser=True,
-        share=False
+        share=False,
+        theme=theme
     )
