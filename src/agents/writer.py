@@ -3,24 +3,26 @@ from typing import Callable, Optional
 from src.core.llm_engine import LLMEngine
 from src.utils.prompts_config import PROMPT_TEMPLATES
 
+from datetime import datetime
+from typing import Callable, Optional, List
+from src.core.llm_engine import LLMEngine
+from src.core.prompt_manager import PromptManager
+
 class ReportWriter:
     def __init__(self):
         self.llm = LLMEngine(model_type="writer")
+        self.prompt_manager = PromptManager()
 
-    def _prepare_context(self, aggregated_data: list) -> tuple[str, list]:
-        """Przygotowuje kontekst i tagi z danych."""
-        all_topics = set()
+    def _prepare_context(self, aggregated_data: list) -> str:
+        """Przygotowuje kontekst z danych bazy wiedzy."""
         context_lines = []
 
         if not isinstance(aggregated_data, list):
-            return "", []
+            return ""
 
         for item in aggregated_data:
             if not isinstance(item, dict):
                 continue
-
-            if 'topics' in item and item['topics']:
-                all_topics.update(item['topics'])
 
             if 'key_concepts' in item:
                 for concept in item['key_concepts']:
@@ -34,11 +36,9 @@ class ReportWriter:
                 for tip in item['tips']:
                     context_lines.append(f"- Wskazówka: {tip}")
 
-        context_str = chr(10).join(context_lines)
-        tags_list = [t.lower().replace(" ", "_") for t in list(all_topics)[:10]]
-        return context_str, tags_list
+        return chr(10).join(context_lines)
 
-    def _build_frontmatter(self, topic_name: str, tags_list: list, mode: str,
+    def _build_frontmatter(self, topic_name: str, tags_list: List[str], mode: str,
                            metadata: dict = None) -> str:
         """Generuje rozszerzony YAML frontmatter dla Obsidian."""
         meta = metadata or {}
@@ -100,49 +100,45 @@ class ReportWriter:
         return source_index
 
     def generate_chapter(self, topic_name: str, aggregated_data: list,
-                         mode: str = "standard",
-                         custom_system_prompt: str = None,
-                         custom_user_prompt: str = None,
-                         stream_callback: Optional[Callable[[str], None]] = None,
-                         metadata: dict = None) -> str:
+                          mode: str = "standard",
+                          tags: List[str] = None,
+                          custom_system_prompt: str = None,
+                          custom_user_prompt: str = None,
+                          stream_callback: Optional[Callable[[str], None]] = None,
+                          metadata: dict = None) -> str:
         """
-        Generuje notatkę z opcjonalnym streamingiem.
-
-        Args:
-            stream_callback: Funkcja wywoływana dla każdego tokena (np. do wyświetlania w GUI).
-                             Jeśli None, używa standardowego generowania.
-            metadata: Opcjonalne metadane do YAML frontmatter (source_url, source_title, duration, aliases).
+        Generuje notatkę bez tagów wewnątrz (tagi przekazywane z zewnątrz).
         """
         # 0. Walidacja danych wejściowych
         if not isinstance(aggregated_data, list) or (len(aggregated_data) > 0 and not isinstance(aggregated_data[0], dict)):
-            raise ValueError("Błąd: Dane wejściowe do ReportWriter muszą być listą obiektów JSON (Knowledge Base). "
-                             "Prawdopodobnie wybrano plik surowej transkrypcji zamiast bazy wiedzy.")
+            raise ValueError("Błąd: Dane wejściowe do ReportWriter muszą być listą obiektów JSON (Knowledge Base).")
 
         # 1. Przygotowanie danych
-        context_str, tags_list = self._prepare_context(aggregated_data)
+        context_str = self._prepare_context(aggregated_data)
 
-        # 2. Wybór szablonu
-        template = PROMPT_TEMPLATES.get(mode, PROMPT_TEMPLATES["standard"])
-        final_system_prompt = custom_system_prompt if custom_system_prompt else template["system"]
-        raw_user_prompt = custom_user_prompt if custom_user_prompt else template["user"]
-        final_user_prompt = raw_user_prompt.replace("{topic_name}", topic_name).replace("{context_items}", context_str)
+        # 2. Budowa promptu przez PromptManager
+        if custom_user_prompt:
+             final_user_prompt = custom_user_prompt.replace("{topic_name}", topic_name).replace("{context_items}", context_str)
+        else:
+             final_user_prompt = self.prompt_manager.build_writer_prompt(context_str, topic_name, content_type=mode)
+
+        final_system_prompt = custom_system_prompt if custom_system_prompt else "Jesteś ekspertem technicznym."
 
         # 3. Generowanie treści
-        print(f"--- GENEROWANIE NOTATKI (Tryb: {mode}) ---")
+        print(f"--- GENEROWANIE TREŚCI (Bielik) ---")
 
         if stream_callback:
-            # Streaming mode - wyświetla tokeny w czasie rzeczywistym
             content_parts = []
             for token in self.llm.generate_stream(final_system_prompt, final_user_prompt):
                 content_parts.append(token)
                 stream_callback(token)
             content_response = "".join(content_parts)
         else:
-            # Standard mode - czeka na całą odpowiedź
             content_response = self.llm.generate(final_system_prompt, final_user_prompt)
 
         # 4. Składanie dokumentu
-        yaml_header = self._build_frontmatter(topic_name, tags_list, mode, metadata)
+        tags_to_use = tags if tags is not None else []
+        yaml_header = self._build_frontmatter(topic_name, tags_to_use, mode, metadata)
         source_index = self._build_source_index(aggregated_data)
 
         return yaml_header + content_response + source_index
