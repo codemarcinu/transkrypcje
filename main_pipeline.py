@@ -9,50 +9,55 @@ from src.utils.config import (
 )
 from src.core.text_cleaner import clean_transcript
 from src.utils.text_processing import smart_split_text
-from src.agents.extractor import KnowledgeExtractor
-from src.agents.writer import ReportWriter
-from src.core.llm_engine import unload_model
-from src.utils.validator import verify_url
+from src.core.transcriber import Transcriber
+from src.core.gpu_manager import clear_gpu_memory
 
 
-def export_to_obsidian(source_path: str) -> bool:
-    """Kopiuje wygenerowany plik .md do Obsidian Vault."""
-    if not OBSIDIAN_VAULT_PATH:
-        return False
-
-    try:
-        # Tworzenie ścieżki docelowej
-        obsidian_dir = os.path.join(OBSIDIAN_VAULT_PATH, OBSIDIAN_SUBFOLDER)
-        os.makedirs(obsidian_dir, exist_ok=True)
-
-        filename = os.path.basename(source_path)
-        dest_path = os.path.join(obsidian_dir, filename)
-
-        shutil.copy2(source_path, dest_path)
-        print(f"📚 Wyeksportowano do Obsidian: {dest_path}")
-        return True
-    except Exception as e:
-        print(f"⚠️ Nie udało się wyeksportować do Obsidian: {e}")
-        return False
-
-
-def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "Narzędzia OSINT, Krypto i Techniki Śledcze"):
+def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "Narzędzia OSINT, Krypto i Techniki Śledcze", whisper_model: str = "large-v3"):
     if not os.path.exists(input_path):
         print(f"Błąd: Nie znaleziono pliku {input_path}")
         return
 
     filename = os.path.basename(input_path)
-    print(f"🚀 Rozpoczynam przetwarzanie: {filename}")
+    print(f"\n🚀 {'='*60}")
+    print(f"🚀 ROZPOCZYNAM PRZETWARZANIE: {filename}")
+    print(f"🚀 {'='*60}")
 
-    # 1. Wczytywanie i czyszczenie
-    with open(input_path, 'r', encoding='utf-8') as f:
+    # --- KROK 1: Transkrypcja (jeśli plik nie jest .txt) ---
+    txt_path = input_path
+    if not input_path.endswith('.txt'):
+        print(f"\n🎙️ [KROK 1] Transkrypcja Whisper (Model: {whisper_model})...")
+        transcriber = Transcriber(logger=None, stop_event=None, progress_callback=lambda p, s: None)
+        
+        # Miejscowa definicja mock-loggera i stop_event dla Transcribera
+        class SimpleLogger:
+            def log(self, m): print(f"  [Whisper] {m}")
+        
+        class SimpleStopEvent:
+            def is_set(self): return False
+
+        transcriber.logger = SimpleLogger()
+        transcriber.stop_event = SimpleStopEvent()
+        transcriber.progress_callback = lambda p, s: None
+
+        segments, info = transcriber.transcribe_video(input_path, language=None, model_size=whisper_model)
+        txt_path, _ = transcriber.save_transcription(segments, info, input_path, output_format="txt", language=None)
+        
+        # --- KROK 1.5: WYMUSZONE CZYSZCZENIE VRAM ---
+        print("\n🧹 [CZYSZCZENIE] Zwalnianie VRAM po Whisperze...")
+        del transcriber
+        clear_gpu_memory(verbose=True)
+        print("✅ VRAM gotowy na LLM.")
+
+    # 2. Wczytywanie i czyszczenie
+    with open(txt_path, 'r', encoding='utf-8') as f:
         raw_text = f.read()
     
     clean_text = clean_transcript(raw_text)
     chunks = smart_split_text(clean_text, chunk_size=CHUNK_SIZE, chunk_overlap=OVERLAP)
-    print(f"📦 Podzielono na {len(chunks)} fragmentów.")
+    print(f"\n📦 Podzielono na {len(chunks)} fragmentów.")
 
-    # 2. Mapowanie (Ekstrakcja)
+    # 3. Mapowanie (Ekstrakcja)
     knowledge_base = []
     failed_chunks = 0
     stats = {
@@ -62,7 +67,7 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
         "tips": 0
     }
     
-    print(f"\n🕵️ Ekstrakcja wiedzy (Model: {MODEL_EXTRACTOR}, num_ctx: 4096)...")
+    print(f"\n🕵️ [KROK 2] Ekstrakcja wiedzy (Model: {MODEL_EXTRACTOR}, num_ctx: 4096)...")
     
     extractor = KnowledgeExtractor()
     total_chunks = len(chunks)
@@ -81,9 +86,7 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
                 failed_chunks += 1
                 print(f"\n⚠️ [OSTRZEŻENIE] Fragment {time_tag} zwrócił puste dane.")
         
-        for tool in graph.tools:
-            stats["tools"] += 1
-        
+        stats["tools"] += len(graph.tools)
         stats["concepts"] += len(graph.key_concepts)
         stats["topics"] += len(graph.topics)
         stats["tips"] += len(graph.tips)
@@ -92,6 +95,7 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
         
         # Backup co 5 fragmentów
         if i % 5 == 0:
+            os.makedirs(DATA_PROCESSED, exist_ok=True)
             with open(os.path.join(DATA_PROCESSED, "knowledge_backup.json"), 'w', encoding='utf-8') as f:
                 json.dump(knowledge_base, f, ensure_ascii=False, indent=2)
 
@@ -105,25 +109,27 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
         print(f"   🚨 UWAGA: Brakuje {failed_chunks} fragmentów wiedzy.")
 
     # Zapis bazy wiedzy
-    kb_path = os.path.join(DATA_PROCESSED, f"{filename}_kb.json")
+    kb_name = os.path.basename(txt_path)
+    kb_path = os.path.join(DATA_PROCESSED, f"{kb_name}_kb.json")
+    os.makedirs(DATA_PROCESSED, exist_ok=True)
     with open(kb_path, 'w', encoding='utf-8') as f:
         json.dump(knowledge_base, f, ensure_ascii=False, indent=2)
 
     unload_model(MODEL_EXTRACTOR)
 
-    # 3. Redukcja (Pisanie)
+    # 4. Redukcja (Pisanie)
     if not knowledge_base or (failed_chunks == len(chunks)):
         print("❌ Błąd krytyczny: Brak danych do napisania podręcznika.")
         return
 
-    print(f"\n✍️ Pisanie podręcznika (Model: {MODEL_WRITER})...")
+    print(f"\n✍️ [KROK 3] Pisanie podręcznika (Model: {MODEL_WRITER})...")
     writer = ReportWriter()
     chapter_content = writer.generate_chapter(topic, knowledge_base)
     
     final_content = f"# Podręcznik: {topic}\n\n{chapter_content}"
     
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, f"Podrecznik_{filename.replace('.txt', '.md')}")
+    output_path = os.path.join(output_dir, f"Podrecznik_{filename.split('.')[0]}.md")
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(final_content)
 
@@ -133,9 +139,19 @@ def run_pipeline(input_path: str, output_dir: str = DATA_OUTPUT, topic: str = "N
     if OBSIDIAN_EXPORT_ENABLED:
         export_to_obsidian(output_path)
 
+
 if __name__ == "__main__":
-    files = [f for f in os.listdir(DATA_RAW) if f.endswith('.txt')]
+    # Obsługa wielu plików i różnych formatów
+    supported_extensions = ('.txt', '.mp3', '.mp4', '.m4a', '.wav')
+    files = [f for f in os.listdir(DATA_RAW) if f.lower().endswith(supported_extensions)]
+    
     if files:
-        run_pipeline(os.path.join(DATA_RAW, files[0]))
+        print(f"Found {len(files)} files to process in {DATA_RAW}")
+        for file in files:
+            try:
+                run_pipeline(os.path.join(DATA_RAW, file))
+            except Exception as e:
+                print(f"❌ Error processing {file}: {e}")
     else:
-        print("Brak plików .txt w data/raw")
+        print(f"Brak wspieranych plików w {DATA_RAW}")
+
