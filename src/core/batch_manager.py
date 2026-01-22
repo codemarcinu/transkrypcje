@@ -24,10 +24,11 @@ class BatchManager:
 
     def upload_and_submit(self, file_path: str, description: str = "Batch Job") -> str:
         """Przesyła plik i uruchamia Batch."""
-        batch_file = self.client.files.create(
-            file=open(file_path, "rb"),
-            purpose="batch"
-        )
+        with open(file_path, "rb") as f:
+            batch_file = self.client.files.create(
+                file=f,
+                purpose="batch"
+            )
         
         batch_job = self.client.batches.create(
             input_file_id=batch_file.id,

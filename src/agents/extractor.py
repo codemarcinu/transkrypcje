@@ -3,6 +3,7 @@ import re
 from typing import Optional
 from src.core.llm_engine import LLMEngine
 from src.core.schema import KnowledgeGraph
+from src.utils.prompts_config import EXTRACTION_PROMPT
 
 class KnowledgeExtractor:
     def __init__(self):
@@ -29,17 +30,8 @@ class KnowledgeExtractor:
         # Fallback: Jeśli nie ma czasu w tekście, użyj ID fragmentu
         final_time_marker = real_timestamp if real_timestamp else f"{chunk_id}"
 
-        system_prompt = """
-        Jesteś analitykiem cyberbezpieczeństwa. Twoim zadaniem jest strukturyzacja wiedzy z transkrypcji.
-        
-        ZASADY:
-        1. Narzędzia: Wymień tylko konkretne oprogramowanie/sprzęt.
-        2. Pojęcia: Definiuj trudne terminy (żargon, akronimy).
-        3. Porady: Wyciągnij praktyczne "Tip of the day".
-        4. Bądź zwięzły. Jeśli kategoria jest pusta, zostaw ją pustą.
-        """
-
-        user_prompt = f"Przeanalizuj poniższy fragment i wyekstrahuj wiedzę:\n\n{chunk_text}"
+        system_prompt = EXTRACTION_PROMPT["system"]
+        user_prompt = EXTRACTION_PROMPT["user"].format(text=chunk_text)
 
         # 2. Pętla Retry (odporność na błędy API/Modelu)
         max_retries = 3

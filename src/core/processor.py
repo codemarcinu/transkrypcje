@@ -3,6 +3,7 @@ from src.core.downloader import Downloader
 from src.core.transcriber import Transcriber
 from src.core.summarizer import Summarizer
 from src.core.osint_analyzer import OsintAnalyzer
+from src.core.gpu_manager import clear_gpu_memory
 from src.utils.helpers import validate_url, validate_path, check_disk_space, check_ffmpeg
 from src.utils.config import DEFAULT_OLLAMA_MODEL
 from src.utils.subtitle_converter import convert_subtitle_to_txt
@@ -82,12 +83,7 @@ class ContentProcessor:
         
         # Prewencyjne czyszczenie VRAM (wyładowanie Whisper i starych modeli)
         try:
-            import torch
-            import gc
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            
+            clear_gpu_memory()
             # Próbujemy zwolnić oba modele LLM na wszelki wypadek
             unload_model(MODEL_EXTRACTOR)
             unload_model(MODEL_WRITER)

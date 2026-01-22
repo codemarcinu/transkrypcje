@@ -1,6 +1,6 @@
 import os
 import ollama
-from src.utils.config import OLLAMA_URL
+from src.utils.config import OLLAMA_URL, CHUNK_SIZE, OVERLAP
 from src.utils.text_processing import smart_split_text
 
 class OsintAnalyzer:
@@ -39,7 +39,7 @@ class OsintAnalyzer:
             full_text = f.read()
 
         # 2. Inteligentny podział
-        chunks = smart_split_text(full_text, max_length=6000, overlap=500)
+        chunks = smart_split_text(full_text, max_length=CHUNK_SIZE, overlap=OVERLAP)
         total_chunks = len(chunks)
         self._log(f"Podział na {total_chunks} fragmentów semantycznych.")
 

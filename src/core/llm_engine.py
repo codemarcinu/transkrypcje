@@ -35,22 +35,12 @@ def unload_model(model_name: str):
     Wymusza zwolnienie modelu z pamięci VRAM (ważne dla kart z <24GB VRAM).
     Wysyła pusty request z keep_alive=0 oraz czyści cache CUDA.
     """
-    import gc
+    from src.core.gpu_manager import clear_gpu_memory
+
     try:
         ollama.generate(model=model_name, prompt="", keep_alive=0)
-        gc.collect()
-        
-        # Próba czyszczenia cache CUDA jeśli torch jest dostępny
-        try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                print(f"[INFO] Zwolniono model i wyczyszczono CUDA: {model_name}")
-            else:
-                print(f"[INFO] Zwolniono model: {model_name} (CUDA niedostępne)")
-        except ImportError:
-            print(f"[INFO] Zwolniono model: {model_name} (Torch niedostępny)")
-            
+        clear_gpu_memory()
+        print(f"[INFO] Zwolniono model i wyczyszczono VRAM: {model_name}")
     except Exception as e:
         print(f"[WARNING] Nie udało się zwolnić modelu {model_name}: {e}")
 

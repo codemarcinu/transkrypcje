@@ -142,31 +142,43 @@ class Downloader:
                     if os.path.exists(filename):
                         size_str = get_file_size(filename)
                         self.logger.log(f"Pobrano: {os.path.basename(filename)} ({size_str})")
-                        
+
                         # Check for subtitles
                         subtitle_file = None
                         base_no_ext = os.path.splitext(filename)[0]
                         # Prioritize Polish then English, VTT then SRT
                         # yt-dlp naming: filename.lang.vtt
                         search_suffixes = ['.pl.vtt', '.en.vtt', '.vtt', '.pl.srt', '.en.srt', '.srt']
-                        # Also check auto-generated ones which might have slightly different naming depending on config, 
+                        # Also check auto-generated ones which might have slightly different naming depending on config,
                         # but usually adhere to similar pattern or just .vtt if only one lang downloaded.
-                        
+
                         # We glob or check specific candidates
                         parent_dir = os.path.dirname(filename)
                         base_name = os.path.basename(base_no_ext)
-                        
+
                         # Simple check for likely candidates
                         for suffix in search_suffixes:
                             candidate = base_no_ext + suffix
                             if os.path.exists(candidate):
-                                subtitle_file = candidate 
+                                subtitle_file = candidate
                                 self.logger.log(f"Znaleziono napisy: {os.path.basename(subtitle_file)}")
                                 break
-                        
+
+                        # Extract metadata from yt-dlp info
+                        duration_seconds = item_info.get('duration', 0)
+                        if duration_seconds:
+                            hours, remainder = divmod(int(duration_seconds), 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            duration_str = f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
+                        else:
+                            duration_str = None
+
                         downloaded_files.append({
                             "video": filename,
-                            "subtitles": subtitle_file
+                            "subtitles": subtitle_file,
+                            "source_url": item_info.get('webpage_url') or item_info.get('original_url') or video_url,
+                            "source_title": item_info.get('title', ''),
+                            "duration": duration_str
                         })
 
             except yt_dlp.utils.DownloadError as e:

@@ -55,3 +55,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 DATA_RAW = os.path.join(BASE_DIR, 'data', 'raw')
 DATA_PROCESSED = os.path.join(BASE_DIR, 'data', 'processed')
 DATA_OUTPUT = os.path.join(BASE_DIR, 'data', 'output')
+
+# Obsidian Vault - automatyczny eksport notatek
+# Ścieżka WSL do Windows: /mnt/c/Users/marci/Documents/Obsidian Vault/2ndBrain
+OBSIDIAN_VAULT_PATH = os.getenv("OBSIDIAN_VAULT_PATH", "/mnt/c/Users/marci/Documents/Obsidian Vault/2ndBrain")
+OBSIDIAN_EXPORT_ENABLED = os.getenv("OBSIDIAN_EXPORT_ENABLED", "true").lower() == "true"
+OBSIDIAN_SUBFOLDER = os.getenv("OBSIDIAN_SUBFOLDER", "Transkrypcje")  # Podfolder w vault
